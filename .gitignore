@@ -1,0 +1,12 @@
+*.aux
+*.glob
+*.vo
+*.vok
+*.vos
+
+/RocqMakefile
+/RocqMakefile.conf
+/.RocqMakefile.d
+
+/old.txt
+/old
