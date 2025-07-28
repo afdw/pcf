@@ -20,11 +20,21 @@ Bind Scope Zm_scope with Zm.
 Notation "'mod'  n" := {| Zm_n := n |} (at level 35, only printing) : Zm_scope.
 
 Lemma injective_Zm_n {μ} :
-  ∀ (n m : Zm μ), Zm_n n = Zm_n m → n = m.
+  ∀ n m : Zm μ, Zm_n n = Zm_n m → n = m.
 Proof.
-  intros n m H. destruct n as [n_n n_canonical_n], m as [m_n m_canonical_n].
+  intros n m H. destruct n as [n canonical_n], m as [m canonical_m].
   simpl in H. destruct H. f_equal. apply proof_irrelevance.
 Qed.
+
+Lemma Zm_eq_dec {μ} :
+  ∀ n m : Zm μ, {n = m} + {n ≠ m}.
+Proof.
+  intros n m. destruct (Z.eq_dec (Zm_n n) (Zm_n m)) as [H_n_m | H_n_m].
+  - left. apply injective_Zm_n. auto.
+  - right. intros <-. auto.
+Qed.
+
+Instance dec_eq_Zm {μ} : EqDec (Zm μ) eq := Zm_eq_dec.
 
 #[program]
 Definition Zm_of_Z {μ} (n : Z) : Zm μ := {|

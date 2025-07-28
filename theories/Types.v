@@ -4,10 +4,10 @@ Inductive type : Type :=
   | Base : type
   | Func : type → type → type.
 
-Declare Scope type_scope.
-Delimit Scope type_scope with type.
-Bind Scope type_scope with type.
-Open Scope type_scope.
+Declare Scope types_scope.
+Delimit Scope types_scope with types.
+Bind Scope types_scope with type.
+Open Scope types_scope.
 
 Notation "'ι'" := Base : type_scope.
 Notation "α  '⇒'  β" := (Func α β) (at level 60, right associativity) : type_scope.
