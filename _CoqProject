@@ -1,5 +1,3 @@
--arg "-w all"
-
 -R theories PCF
 
 theories
