@@ -3,6 +3,7 @@
 *.vo
 *.vok
 *.vos
+*.lia.cache
 
 /RocqMakefile
 /RocqMakefile.conf
