@@ -2,6 +2,8 @@ From PCF Require Import Tools.
 From PCF Require Import Zm.
 From PCF Require Import Types.
 
+Unset Elimination Schemes.
+
 Inductive termₘ μ : list type → type → Type :=
   | Oₘ : ∀ Γ, termₘ μ Γ ι
   | Pₘ : ∀ Γ, termₘ μ Γ (ι ⇒ ι)
@@ -20,10 +22,98 @@ Arguments Varₘ {μ Γ}.
 Arguments Appₘ {μ Γ α β}.
 Arguments Absₘ {μ Γ α}.
 
+Set Elimination Schemes.
+
 Notation "s  '$ₘ'  t" := (Appₘ s t) (at level 40, left associativity).
 Notation "'λₘ:'  α ','  s" := (Absₘ α s) (at level 35, s at level 200).
+
+Definition termₘ_rect (μ : nat) (P : ∀ Γ α, termₘ μ Γ α → Type)
+  (case_Oₘ : ∀ Γ, P Γ ι Oₘ)
+  (case_Pₘ : ∀ Γ, P Γ (ι ⇒ ι) Pₘ)
+  (case_Sₘ : ∀ Γ, P Γ (ι ⇒ ι) Sₘ)
+  (case_switchₘ : ∀ Γ (s' : termₘ μ Γ ι), P Γ ι s' → ∀ f : Zm μ →₀ termₘ μ Γ ι, (∀ n, P Γ ι (f n)) → match stabilizing_fun_default f with Some t' => P Γ ι t' | None => True end → P Γ ι (switchₘ s' f))
+  (case_fixₘ : ∀ Γ α, P Γ ((α ⇒ α) ⇒ α) (fixₘ α))
+  (case_Varₘ : ∀ Γ α (mi : mem_index α Γ), P Γ α (Varₘ α mi))
+  (case_Appₘ : ∀ Γ α β (s' : termₘ μ Γ (α ⇒ β)), P Γ (α ⇒ β) s' → ∀ t' : termₘ μ Γ α, P Γ α t' → P Γ β (s' $ₘ t'))
+  (case_Absₘ : ∀ Γ α β (s' : termₘ μ (β :: Γ) α), P (β :: Γ) α s' → P Γ (β ⇒ α) (λₘ: β, s')) :=
+  fix F Γ α (s : termₘ μ Γ α) : P Γ α s :=
+    match s with
+    | @Oₘ _ Γ => case_Oₘ Γ
+    | @Pₘ _ Γ => case_Pₘ Γ
+    | @Sₘ _ Γ => case_Sₘ Γ
+    | @switchₘ _ Γ s' f => case_switchₘ Γ s' (F Γ ι s') f (λ n, F Γ ι (f n)) (match stabilizing_fun_default f as t' return match t' with Some t' => P Γ ι t' | None => True end with Some t' => F Γ ι t' | None => I end)
+    | @fixₘ _ Γ α => case_fixₘ Γ α
+    | @Varₘ _ Γ α m => case_Varₘ Γ α m
+    | @Appₘ _ Γ α β s' t' => case_Appₘ Γ α β s' (F Γ (α ⇒ β) s') t' (F Γ α t')
+    | @Absₘ _ Γ α β s' => case_Absₘ Γ α β s' (F (β :: Γ) α s')
+    end.
+
+Definition termₘ_ind (μ : nat) (P : ∀ Γ α, termₘ μ Γ α → Prop)
+  (case_Oₘ : ∀ Γ, P Γ ι Oₘ)
+  (case_Pₘ : ∀ Γ, P Γ (ι ⇒ ι) Pₘ)
+  (case_Sₘ : ∀ Γ, P Γ (ι ⇒ ι) Sₘ)
+  (case_switchₘ : ∀ Γ (s' : termₘ μ Γ ι), P Γ ι s' → ∀ f : Zm μ →₀ termₘ μ Γ ι, (∀ n, P Γ ι (f n)) → match stabilizing_fun_default f with Some t' => P Γ ι t' | None => True end → P Γ ι (switchₘ s' f))
+  (case_fixₘ : ∀ Γ α, P Γ ((α ⇒ α) ⇒ α) (fixₘ α))
+  (case_Varₘ : ∀ Γ α (mi : mem_index α Γ), P Γ α (Varₘ α mi))
+  (case_Appₘ : ∀ Γ α β (s' : termₘ μ Γ (α ⇒ β)), P Γ (α ⇒ β) s' → ∀ t' : termₘ μ Γ α, P Γ α t' → P Γ β (s' $ₘ t'))
+  (case_Absₘ : ∀ Γ α β (s' : termₘ μ (β :: Γ) α), P (β :: Γ) α s' → P Γ (β ⇒ α) (λₘ: β, s')) :=
+  fix F Γ α (s : termₘ μ Γ α) : P Γ α s :=
+    match s with
+    | @Oₘ _ Γ => case_Oₘ Γ
+    | @Pₘ _ Γ => case_Pₘ Γ
+    | @Sₘ _ Γ => case_Sₘ Γ
+    | @switchₘ _ Γ s' f => case_switchₘ Γ s' (F Γ ι s') f (λ n, F Γ ι (f n)) (match stabilizing_fun_default f as t' return match t' with Some t' => P Γ ι t' | None => True end with Some t' => F Γ ι t' | None => I end)
+    | @fixₘ _ Γ α => case_fixₘ Γ α
+    | @Varₘ _ Γ α m => case_Varₘ Γ α m
+    | @Appₘ _ Γ α β s' t' => case_Appₘ Γ α β s' (F Γ (α ⇒ β) s') t' (F Γ α t')
+    | @Absₘ _ Γ α β s' => case_Absₘ Γ α β s' (F (β :: Γ) α s')
+    end.
+
+Definition termₘ_rec (μ : nat) (P : ∀ Γ α, termₘ μ Γ α → Set) := termₘ_rect μ P.
+
+Instance dec_eq_termₘ {μ Γ α} : EqDec (termₘ μ Γ α) eq.
+Proof.
+  rewrite dec_eq_def.
+  intros s_1; induction s_1 as [Γ_1 | Γ_1 | Γ_1 | Γ_1 s'_1 IH_s' f_1 IH_f IH_f_default | Γ_1 α_1 | Γ_1 α_1 mi_1 | Γ_1 α_1 β_1 s'_1 IH_s' t'_1 IH_t' | Γ_1 α_1 β_1 s' IH_s']; intros s_2.
+  - change
+      (match ι as α return termₘ μ Γ_1 α → Set with
+      | ι => λ s_2, {Oₘ = s_2} + {Oₘ ≠ s_2}
+      | _ => λ _, True
+      end s_2).
+    destruct s_2 as [Γ_2 | Γ_2 | Γ_2 | Γ_2 s'_2 f_2 | Γ_2 α_2 | Γ_2 α_2 mi_2 | Γ_2 α_2 β_2 s'_2 t'_2 | Γ_2 α_2 β_2 s']; try (destruct α_2 as [| α_2_α α_2_β]); try (destruct β_2 as [| β_2_α β_2_β]); constructor; congruence.
+  - change
+      (match ι ⇒ ι as α return termₘ μ Γ_1 α → Set with
+      | ι ⇒ ι => λ s_2, {Pₘ = s_2} + {Pₘ ≠ s_2}
+      | _ => λ _, True
+      end s_2).
+    destruct s_2 as [Γ_2 | Γ_2 | Γ_2 | Γ_2 s'_2 f_2 | Γ_2 α_2 | Γ_2 α_2 mi_2 | Γ_2 α_2 β_2 s'_2 t'_2 | Γ_2 α_2 β_2 s']; try (destruct α_2 as [| [| α_2_α_α α_2_α_β] [| α_2_β_α α_2_β_β]]); try (destruct β_2 as [| [| β_2_α_α β_2_α_β] [| β_2_β_α β_2_β_β]]); constructor; congruence.
+  - change
+      (match ι ⇒ ι as α return termₘ μ Γ_1 α → Set with
+      | ι ⇒ ι => λ s_2, {Sₘ = s_2} + {Sₘ ≠ s_2}
+      | _ => λ _, True
+      end s_2).
+    destruct s_2 as [Γ_2 | Γ_2 | Γ_2 | Γ_2 s'_2 f_2 | Γ_2 α_2 | Γ_2 α_2 mi_2 | Γ_2 α_2 β_2 s'_2 t'_2 | Γ_2 α_2 β_2 s']; try (destruct α_2 as [| [| α_2_α_α α_2_α_β] [| α_2_β_α α_2_β_β]]); try (destruct β_2 as [| [| β_2_α_α β_2_α_β] [| β_2_β_α β_2_β_β]]); constructor; congruence.
+  - change
+      (match ι as α return termₘ μ Γ_1 α → Set with
+      | ι => λ s_2, {switchₘ s'_1 f_1 = s_2} + {switchₘ s'_1 f_1 ≠ s_2}
+      | _ => λ _, True
+      end s_2).
+    destruct s_2 as [Γ_2 | Γ_2 | Γ_2 | Γ_2 s'_2 f_2 | Γ_2 α_2 | Γ_2 α_2 mi_2 | Γ_2 α_2 β_2 s'_2 t'_2 | Γ_2 α_2 β_2 s']; try (destruct α_2 as [| α_2_α α_2_β]); try (destruct β_2 as [| β_2_α β_2_β]); try (constructor; congruence).
+    specialize (IH_s' s'_2). ltac1:(pose proof (IH'_f := λ n, IH_f n (f_2 n))); clear IH_f.
+      assert (H_f_default : {stabilizing_fun_default f_1 = stabilizing_fun_default f_2} + {stabilizing_fun_default f_1 ≠ stabilizing_fun_default f_2}). {
+        remember (stabilizing_fun_default f_1) as f_default_1 eqn:H_f_default_1; remember (stabilizing_fun_default f_2) as f_default_2 eqn:H_f_default_2. destruct f_default_1 as [t'_1 |], f_default_2 as [t'_2 |]; try (right; congruence).
+        - specialize (IH_f_default t'_2). destruct IH_f_default; constructor; congruence.
+        - left. auto.
+      }
+      ltac1:(pose proof (H_f := dec_eq_stabilizing_fun_minimal f_1 f_2 IH'_f H_f_default)).
+      destruct IH_s' as [<- | IH_s'] > [destruct H_f as [<- | H_f] |]; constructor; congruence.
+  - admit.
+  - admit.
+  - admit.
+  - admit.
+Admitted.
 
 Check (λₘ: ι, λₘ: ι, Varₘ ι (MIS MIO)) $ₘ (Sₘ $ₘ Varₘ ι MIO) $ₘ Oₘ.
 (* Check (λₘ: ι, λₘ: ι, Varₘ ι (MIS MIO)) $ₘ (λₘ: ι, Varₘ ι MIO). *)
 
-(* Check λₘ: ι, switchₘ (Varₘ ι MIO) (Zm_of_Z 0 ↦₀ Sₘ $ₘ (Sₘ $ₘ Oₘ), Zm_of_Z 1 ↦₀ Oₘ, _ ↦₀ Sₘ $ₘ Oₘ). *)
+Check λₘ: ι, switchₘ (Varₘ ι MIO) (Zm_of_Z 0 ↦₀ Sₘ $ₘ (Sₘ $ₘ Oₘ), Zm_of_Z 1 ↦₀ Oₘ, _ ↦₀ Sₘ $ₘ Oₘ).

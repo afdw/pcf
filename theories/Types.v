@@ -12,6 +12,14 @@ Open Scope types_scope.
 Notation "'ι'" := Base : type_scope.
 Notation "α  '⇒'  β" := (Func α β) (at level 60, right associativity) : type_scope.
 
+Instance dec_eq_type : EqDec type eq.
+Proof.
+  rewrite dec_eq_def.
+  intros α_1; induction α_1 as [| α'_1 IH_α' β'_1 IH_β']; intros α_2; destruct α_2 as [| α'_2 β'_2]; try (right; congruence); unfold equiv, complement in *.
+  - left. reflexivity.
+  - specialize (IH_α' α'_2) as [<- | IH_α']; specialize (IH_β' β'_2) as [<- | IH_β']; constructor; congruence.
+Defined.
+
 Fixpoint construct_type (αs : list type) : type :=
   match αs with
   | [] => ι

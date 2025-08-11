@@ -7,6 +7,7 @@ From Stdlib Require Export Logic.IndefiniteDescription.
 From Stdlib Require Arith.Arith.
 From Stdlib Require Export ZArith.ZArith.
 From Stdlib Require Export micromega.Lia.
+Export Corelib.Init.Logic.EqNotations.
 From Stdlib Require Lists.List.
 Export Stdlib.Lists.List.ListNotations.
 From Corelib Require Export Program.Basics.
@@ -18,6 +19,8 @@ From Stdlib Require Export Sorting.Sorted.
 Unset Program Cases.
 Unset Program Generalized Coercion.
 Unset Implicit Arguments.
+
+(* Set Typeclasses Iterative Deepening. *)
 
 Ltac2 Notation "lia" := ltac1:(lia).
 
@@ -48,6 +51,13 @@ Notation " ! " := (False_rect _ _) : program_scope. (* copied from Corelib.Progr
 
 Notation " ` t " := (proj1_sig t) (at level 10, t at next level) : program_scope. (* copied from Corelib.Program.Utils *)
 
+Lemma dec_eq_def :
+  ∀ A,
+  EqDec A eq = ∀ x y : A, {x = y} + {x ≠ y}.
+Proof.
+  intros A. auto.
+Qed.
+
 Instance dec_eq_Z : EqDec Z eq := Z.eq_dec.
 
 Class Total {A} (R : A → A → Prop) :=
@@ -66,7 +76,7 @@ Notation "x <= y" := (le x y) (at level 70, no associativity) : le_scope.
 Notation "x ≤ y" := (le x y) (at level 70, no associativity) : le_scope.
 
 Class DecLe {A} (R : A → A → Prop) {pre_order_R : PreOrder R} :=
-  | dec_le : ∀ x y : A, { (x ≤ y)%le } + { ¬ (x ≤ y)%le }.
+  | dec_le : ∀ x y : A, {(x ≤ y)%le} + {¬ (x ≤ y)%le}.
 
 Notation "x <=? y" := (dec_le x y) (at level 70, no associativity) : le_scope.
 Notation "x ≤? y" := (dec_le x y) (at level 70, no associativity) : le_scope.
@@ -76,7 +86,7 @@ Instance dec_le_nat : DecLe Nat.le := le_dec.
 Instance dec_le_Z : DecLe Z.le := Z_le_dec.
 
 #[program]
-Instance dec_le_impl_dec_eq {A} (R : A → A → Prop) {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_le_R : DecLe R} : EqDec A eq :=
+Instance dec_le_impl_dec_eq {A} (R : A → A → Prop) {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_le_R : DecLe R} : EqDec A eq | 0 :=
   λ x y,
     match (x ≤? y)%le, (y ≤? x)%le with
     | left _, left _ => left _
@@ -492,6 +502,111 @@ Proof.
   simpl in H_f, H_keys, H_default. destruct H_f, H_keys, H_default. f_equal. apply proof_irrelevance.
 Qed.
 
+Definition dec_eq_stabilizing_fun_minimal {A B} {dec_finite_A : DecFinite A} {dec_eq_A : EqDec A eq} (f g : A →₀ B) (dec_eq_f : ∀ a, {f a = g a} + {f a ≠ g a}) (dec_eq_f_default : {stabilizing_fun_default f = stabilizing_fun_default g} + {stabilizing_fun_default f ≠ stabilizing_fun_default g}) : {f = g} + {f ≠ g}.
+Proof.
+  destruct f as [f f_keys f_default stabilizing_f], g as [g g_keys g_default stabilizing_g]; simpl in dec_eq_f, dec_eq_f_default.
+  assert (dec_eq_list_map_f : ∀ l, {List.map f l = List.map g l} + {List.map f l ≠ List.map g l}). {
+    intros l. induction l as [| a l' IH].
+    - left. auto.
+    - simpl. destruct IH as [<- | IH] > [destruct (dec_eq_f a) as [<- | H_a] |].
+      + left. auto.
+      + right. congruence.
+      + right. congruence.
+  }
+  destruct (f_keys == g_keys) as [<- | H_keys], dec_eq_f_default as [<- | H_default]; try (right; congruence).
+  destruct (@dec_finite A _) as [(list_A & H_list_A) | infinite_A].
+  - pose (f_values := List.map f list_A); pose (g_values := List.map g list_A).
+    destruct (dec_eq_list_map_f list_A) as [H_values | H_values].
+    + assert (H_f : f = g). {
+        apply functional_extensionality. intros a. specialize (H_list_A a).
+        induction list_A as [| a' list_A' IH].
+        - exfalso. auto.
+        - injection H_values as H_a' H_values. destruct H_list_A as [-> | H_list_A].
+          + auto.
+          + auto.
+      }
+      left. apply irrelevant_stabilizing_fun; auto.
+    + right. ltac1:(intros [=H_f]). apply H_values; clear H_list_A H_values. induction list_A as [| a list_A' IH].
+      * reflexivity.
+      * change (f_values = g_values). subst f_values g_values. simpl. f_equal.
+        -- apply equal_f; auto.
+        -- auto.
+  - pose (f_values := List.map f f_keys); pose (g_values := List.map g f_keys).
+    pose (b_f := f (` (infinite_A f_keys))). pose (b_g := g (` (infinite_A f_keys))).
+    destruct (dec_eq_list_map_f f_keys) as [H_values | H_values] > [destruct (dec_eq_f (` (infinite_A f_keys))) as [H_b | H_b] |].
+    + change (b_f = b_g) in H_b.
+      assert (H_f : f = g). {
+        apply functional_extensionality. intros a. clear dec_eq_list_map_f.
+        revert f stabilizing_f f_values b_f g stabilizing_g g_values b_g dec_eq_f H_values H_b; induction f_keys as [| a' f_keys' IH]; intros f stabilizing_f f_values b_f g stabilizing_g g_values b_g dec_eq_f H_values H_b.
+        - destruct stabilizing_f as [H_f | (b_stabilizing_f & H_b_stabilizing_f)] > [| destruct stabilizing_g as [H_g | (b_stabilizing_g & H_b_stabilizing_g)]].
+          + exfalso. apply H_f. exists. auto.
+          + exfalso. apply H_g. exists. auto.
+          + ltac1:(replace b_stabilizing_f with (f (` (infinite_A []))) in *; revgoals). {
+              destruct (infinite_A []) as (a' & H_a'). simpl. specialize (H_b_stabilizing_f a'). ltac1:(intuition congruence).
+            }
+            ltac1:(replace b_stabilizing_g with (g (` (infinite_A []))) in *; revgoals). {
+              destruct (infinite_A []) as (a' & H_a'). simpl. specialize (H_b_stabilizing_g a'). ltac1:(intuition congruence).
+            }
+            specialize (H_b_stabilizing_f a) as [[] | H_b_stabilizing_f]; specialize (H_b_stabilizing_g a) as [[] | H_b_stabilizing_g]. rewrite H_b_stabilizing_f, H_b_stabilizing_g. auto.
+        - destruct stabilizing_f as [H_f | (b_stabilizing_f & H_b_stabilizing_f)] > [| destruct stabilizing_g as [H_g | (b_stabilizing_g & H_b_stabilizing_g)]].
+          + exfalso. apply H_f. exists. auto.
+          + exfalso. apply H_g. exists. auto.
+          + pose (f' := λ a, if @equiv_dec _ _ _ dec_eq_A a a' then b_f else f a).
+            pose (g' := λ a, if @equiv_dec _ _ _ dec_eq_A a a' then b_f else g a).
+            injection H_values as H_a' H_values.
+            assert (H_values' : List.map f' f_keys' = List.map g' f_keys'). {
+              clear IH b_stabilizing_f H_b_stabilizing_f b_stabilizing_g H_b_stabilizing_g. clear b_g H_b; ltac1:(clearbody b_f). induction f_keys' as [| a'' f_keys'' IH'].
+              - auto.
+              - injection H_values as H_a'' H_values'. simpl. f_equal.
+                + subst f' g'; simpl. destruct (a'' == a'); auto.
+                + apply IH'; auto.
+            }
+            assert (stabilizing_f' : stabilizing f' f_keys'). {
+              right. exists b_stabilizing_f. intros a''. subst f'; simpl. destruct (a'' == a') as [-> | H_a''].
+              - right. subst b_f. destruct (infinite_A (a' :: f_keys')) as (a'' & H_a''). simpl. specialize (H_b_stabilizing_f a''). ltac1:(intuition congruence).
+              - specialize (H_b_stabilizing_f a''); simpl in H_b_stabilizing_f. ltac1:(intuition congruence).
+            }
+            assert (stabilizing_g' : stabilizing g' f_keys'). {
+              right. exists b_stabilizing_g. intros a''. subst g'; simpl. destruct (a'' == a') as [-> | H_a''].
+              - right. subst b_g. destruct (infinite_A (a' :: f_keys')) as (a'' & H_a''). simpl. specialize (H_b_stabilizing_g a''). rewrite H_b. ltac1:(intuition congruence).
+              - specialize (H_b_stabilizing_g a''); simpl in H_b_stabilizing_g. ltac1:(intuition congruence).
+            }
+            assert (dec_eq_f' : ∀ a, {f' a = g' a} + {f' a ≠ g' a}). {
+              intros a''. subst f' g'; simpl. destruct (a'' == a') as [-> | _].
+              - left. auto.
+              - apply dec_eq_f.
+            }
+            assert (H_b' : f' (` (infinite_A f_keys')) = g' (` (infinite_A f_keys'))). {
+              subst f' g'; simpl. destruct (` (infinite_A f_keys') == a') as [_ | H_a''].
+              - auto.
+              - ltac1:(replace b_stabilizing_f with b_f in *; revgoals). {
+                  destruct (infinite_A (a' :: f_keys')) as (a''' & H_a'''). simpl. specialize (H_b_stabilizing_f a'''). ltac1:(intuition congruence).
+                }
+                ltac1:(replace b_stabilizing_g with b_g in *; revgoals). {
+                  destruct (infinite_A (a' :: f_keys')) as (a''' & H_a'''). simpl. specialize (H_b_stabilizing_g a'''). ltac1:(intuition congruence).
+                }
+                specialize (H_b_stabilizing_f (` (infinite_A f_keys'))); specialize (H_b_stabilizing_g (` (infinite_A f_keys'))). destruct (infinite_A f_keys') as (a''' & H_a'''). simpl in H_b_stabilizing_f, H_b_stabilizing_g, H_a'' |- *.
+                ltac1:(intuition congruence).
+            }
+            specialize (IH f' stabilizing_f' g' stabilizing_g' dec_eq_f' H_values' H_b'). subst f' g'; simpl in IH.
+            destruct (a == a') as [<- | _]; auto.
+      }
+      left. apply irrelevant_stabilizing_fun; auto.
+    + right. ltac1:(intros [=H_f]). apply H_b. apply equal_f; auto.
+    + right. ltac1:(intros [=H_f]). apply H_values; clear stabilizing_f stabilizing_g H_values. induction f_keys as [| a f_keys' IH].
+      * reflexivity.
+      * change (f_values = g_values). subst f_values g_values. simpl. f_equal.
+        -- apply equal_f; auto.
+        -- auto.
+Defined.
+
+Instance dec_eq_stabilizing_fun {A B} {dec_finite_A : DecFinite A} {dec_eq_A : EqDec A eq} {dec_eq_B : EqDec B eq} : EqDec (A →₀ B) eq.
+Proof.
+  rewrite dec_eq_def. intros f g. apply dec_eq_stabilizing_fun_minimal.
+  - intros a. apply (f a == g a).
+  - apply (stabilizing_fun_default f == stabilizing_fun_default g).
+Defined.
+
 Definition stabilizing_fun_canonical {A B} {R : A → A → Prop} {pre_order_R : PreOrder R} (f : A →₀ B) :=
   list_sorted_nodup (stabilizing_fun_keys f) ∧
   match stabilizing_fun_default f with
@@ -570,7 +685,7 @@ Proof.
     + destruct canonical_f as (H_f_keys & H_f_A & H_f_a), canonical_g as (H_g_keys & H_g_A & H_g_a).
       assert (H_b : f_b = g_b). {
         apply NNPP. intros H_f_b_g_b. apply H_f_A. exists. exists (f_keys ++ g_keys). intros a.
-        specialize (H_f_a a). specialize (H_g_a a). specialize (@equal_f _ _ _ _ H_f a) as H_f'.
+        specialize (H_f_a a). specialize (H_g_a a). apply equal_f with a in H_f.
         rewrite List.in_app_iff. destruct (classic (f a = f_b)) as [<- | H_f_b], (classic (g a = g_b)) as [<- | H_g_b].
         - exfalso. auto.
         - right. rewrite <- H_g_a. auto.
@@ -578,7 +693,7 @@ Proof.
         - left. rewrite <- H_f_a. auto.
       }
       assert (H_keys : ∀ a, List.In a f_keys ↔ List.In a g_keys). {
-        intros a. specialize (H_f_a a). specialize (H_g_a a). specialize (@equal_f _ _ _ _ H_f a) as H_f'. rewrite <- H_f_a, <- H_g_a. ltac1:(intuition congruence).
+        intros a. specialize (H_f_a a). specialize (H_g_a a). apply equal_f with a in H_f. rewrite <- H_f_a, <- H_g_a. ltac1:(intuition congruence).
       }
       split.
       * apply list_sorted_nodup_impl_canonical; auto.
