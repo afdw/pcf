@@ -1,4 +1,5 @@
 From Ltac2 Require Export Ltac2.
+From Equations Require Export Equations.
 From Stdlib Require Export Unicode.Utf8.
 From Stdlib Require Export Logic.Classical.
 From Stdlib Require Export Logic.FunctionalExtensionality.
@@ -13,7 +14,6 @@ Export Stdlib.Lists.List.ListNotations.
 From Corelib Require Export Program.Basics.
 (* From Corelib Require Export Program.Utils. *)
 From Stdlib Require Export Classes.EquivDec.
-From Stdlib Require Export Sorting.Sorted.
 
 #[global] Obligation Tactic := ().
 Unset Program Cases.
@@ -21,6 +21,9 @@ Unset Program Generalized Coercion.
 Unset Implicit Arguments.
 
 (* Set Typeclasses Iterative Deepening. *)
+
+#[global] Set Equations With UIP.
+#[global] Set Equations Transparent.
 
 Ltac2 Notation "lia" := ltac1:(lia).
 
@@ -47,7 +50,7 @@ Notation "x ≤ y ≤ z" := (x ≤ y /\ y ≤ z)%Z : Z_scope.
 Notation "x ≤ y < z" := (x ≤ y /\ y < z)%Z : Z_scope.
 Notation "x < y ≤ z" := (x < y /\ y ≤ z)%Z : Z_scope.
 
-Notation " ! " := (False_rect _ _) : program_scope. (* copied from Corelib.Program.Utils *)
+(* Notation " ! " := (False_rect _ _) : program_scope. (* copied from Corelib.Program.Utils *) *)
 
 Notation " ` t " := (proj1_sig t) (at level 10, t at next level) : program_scope. (* copied from Corelib.Program.Utils *)
 
@@ -57,6 +60,10 @@ Lemma dec_eq_def :
 Proof.
   intros A. auto.
 Qed.
+
+Instance dec_eq_impl_equations_dec_eq {A} {dec_eq_A : EqDec A eq} : Classes.EqDec A | 100 := dec_eq_A.
+
+Instance equations_dec_eq_impl_dec_eq {A} {dec_eq_A : Classes.EqDec A} : EqDec A eq | 100 := dec_eq_A.
 
 Instance dec_eq_Z : EqDec Z eq := Z.eq_dec.
 
@@ -86,7 +93,7 @@ Instance dec_le_nat : DecLe Nat.le := le_dec.
 Instance dec_le_Z : DecLe Z.le := Z_le_dec.
 
 #[program]
-Instance dec_le_impl_dec_eq {A} (R : A → A → Prop) {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_le_R : DecLe R} : EqDec A eq | 0 :=
+Instance dec_le_impl_dec_eq {A} (R : A → A → Prop) {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_le_R : DecLe R} : EqDec A eq | 100 :=
   λ x y,
     match (x ≤? y)%le, (y ≤? x)%le with
     | left _, left _ => left _
@@ -472,6 +479,16 @@ Inductive mem_index {A} (a : A) : list A → Type :=
   | MIS : ∀ b l', mem_index a l' → mem_index a (b :: l').
 Arguments MIO {A a l'}.
 Arguments MIS {A a b l'}.
+
+Instance dec_eq_mem_index {A} {dec_eq_A : EqDec A eq} (a : A) l : EqDec (mem_index a l) eq.
+Proof.
+  rewrite dec_eq_def.
+  intros mi_1; induction mi_1 as [l'_1 | b_1 l'_1 mi'_1 IH]; intros mi_2; ltac1:(dependent elimination mi_2 as [@MIO l'_2 | @MIS b_2 l'_2 mi'_2]); try (right; congruence).
+  - left; reflexivity.
+  - specialize (IH mi'_2). destruct IH as [<- | IH].
+    + left; reflexivity.
+    + right. intros H. apply IH. injection H as H. apply inj_right_pair in H. auto.
+Defined.
 
 Check MIS (MIS (MIS MIO)).
 

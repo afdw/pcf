@@ -71,47 +71,32 @@ Definition termₘ_ind (μ : nat) (P : ∀ Γ α, termₘ μ Γ α → Prop)
 
 Definition termₘ_rec (μ : nat) (P : ∀ Γ α, termₘ μ Γ α → Set) := termₘ_rect μ P.
 
+Equations Derive NoConfusion for termₘ.
+
 Instance dec_eq_termₘ {μ Γ α} : EqDec (termₘ μ Γ α) eq.
 Proof.
   rewrite dec_eq_def.
-  intros s_1; induction s_1 as [Γ_1 | Γ_1 | Γ_1 | Γ_1 s'_1 IH_s' f_1 IH_f IH_f_default | Γ_1 α_1 | Γ_1 α_1 mi_1 | Γ_1 α_1 β_1 s'_1 IH_s' t'_1 IH_t' | Γ_1 α_1 β_1 s' IH_s']; intros s_2.
-  - change
-      (match ι as α return termₘ μ Γ_1 α → Set with
-      | ι => λ s_2, {Oₘ = s_2} + {Oₘ ≠ s_2}
-      | _ => λ _, True
-      end s_2).
-    destruct s_2 as [Γ_2 | Γ_2 | Γ_2 | Γ_2 s'_2 f_2 | Γ_2 α_2 | Γ_2 α_2 mi_2 | Γ_2 α_2 β_2 s'_2 t'_2 | Γ_2 α_2 β_2 s']; try (destruct α_2 as [| α_2_α α_2_β]); try (destruct β_2 as [| β_2_α β_2_β]); constructor; congruence.
-  - change
-      (match ι ⇒ ι as α return termₘ μ Γ_1 α → Set with
-      | ι ⇒ ι => λ s_2, {Pₘ = s_2} + {Pₘ ≠ s_2}
-      | _ => λ _, True
-      end s_2).
-    destruct s_2 as [Γ_2 | Γ_2 | Γ_2 | Γ_2 s'_2 f_2 | Γ_2 α_2 | Γ_2 α_2 mi_2 | Γ_2 α_2 β_2 s'_2 t'_2 | Γ_2 α_2 β_2 s']; try (destruct α_2 as [| [| α_2_α_α α_2_α_β] [| α_2_β_α α_2_β_β]]); try (destruct β_2 as [| [| β_2_α_α β_2_α_β] [| β_2_β_α β_2_β_β]]); constructor; congruence.
-  - change
-      (match ι ⇒ ι as α return termₘ μ Γ_1 α → Set with
-      | ι ⇒ ι => λ s_2, {Sₘ = s_2} + {Sₘ ≠ s_2}
-      | _ => λ _, True
-      end s_2).
-    destruct s_2 as [Γ_2 | Γ_2 | Γ_2 | Γ_2 s'_2 f_2 | Γ_2 α_2 | Γ_2 α_2 mi_2 | Γ_2 α_2 β_2 s'_2 t'_2 | Γ_2 α_2 β_2 s']; try (destruct α_2 as [| [| α_2_α_α α_2_α_β] [| α_2_β_α α_2_β_β]]); try (destruct β_2 as [| [| β_2_α_α β_2_α_β] [| β_2_β_α β_2_β_β]]); constructor; congruence.
-  - change
-      (match ι as α return termₘ μ Γ_1 α → Set with
-      | ι => λ s_2, {switchₘ s'_1 f_1 = s_2} + {switchₘ s'_1 f_1 ≠ s_2}
-      | _ => λ _, True
-      end s_2).
-    destruct s_2 as [Γ_2 | Γ_2 | Γ_2 | Γ_2 s'_2 f_2 | Γ_2 α_2 | Γ_2 α_2 mi_2 | Γ_2 α_2 β_2 s'_2 t'_2 | Γ_2 α_2 β_2 s']; try (destruct α_2 as [| α_2_α α_2_β]); try (destruct β_2 as [| β_2_α β_2_β]); try (constructor; congruence).
-    specialize (IH_s' s'_2). ltac1:(pose proof (IH'_f := λ n, IH_f n (f_2 n))); clear IH_f.
-      assert (H_f_default : {stabilizing_fun_default f_1 = stabilizing_fun_default f_2} + {stabilizing_fun_default f_1 ≠ stabilizing_fun_default f_2}). {
-        remember (stabilizing_fun_default f_1) as f_default_1 eqn:H_f_default_1; remember (stabilizing_fun_default f_2) as f_default_2 eqn:H_f_default_2. destruct f_default_1 as [t'_1 |], f_default_2 as [t'_2 |]; try (right; congruence).
-        - specialize (IH_f_default t'_2). destruct IH_f_default; constructor; congruence.
-        - left. auto.
-      }
-      ltac1:(pose proof (H_f := dec_eq_stabilizing_fun_minimal f_1 f_2 IH'_f H_f_default)).
-      destruct IH_s' as [<- | IH_s'] > [destruct H_f as [<- | H_f] |]; constructor; congruence.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-Admitted.
+  intros s_1; induction s_1 as [Γ_1 | Γ_1 | Γ_1 | Γ_1 s'_1 IH_s' f_1 IH_f IH_f_default | Γ_1 α_1 | Γ_1 α_1 mi_1 | Γ_1 α_1 β_1 s'_1 IH_s' t'_1 IH_t' | Γ_1 α_1 β_1 s'_1 IH_s']; intros s_2; ltac1:(dependent elimination s_2 as [@Oₘ Γ_2 | @Pₘ Γ_2 | @Sₘ Γ_2 | @switchₘ Γ_2 s'_2 f_2 | @fixₘ Γ_2 α_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2 | @Absₘ Γ_2 α_2 β_2 s'_2]); try (right; congruence).
+  - left; reflexivity.
+  - left; reflexivity.
+  - left; reflexivity.
+  - specialize (IH_s' s'_2). ltac1:(pose proof (IH'_f := λ n, IH_f n (f_2 n))); clear IH_f.
+    assert (H_f_default : {stabilizing_fun_default f_1 = stabilizing_fun_default f_2} + {stabilizing_fun_default f_1 ≠ stabilizing_fun_default f_2}). {
+      remember (stabilizing_fun_default f_1) as f_default_1 eqn:H_f_default_1; remember (stabilizing_fun_default f_2) as f_default_2 eqn:H_f_default_2. destruct f_default_1 as [t'_1 |], f_default_2 as [t'_2 |]; try (right; congruence).
+      - specialize (IH_f_default t'_2). destruct IH_f_default; constructor; congruence.
+      - left; reflexivity.
+    }
+    ltac1:(pose proof (H_f := dec_eq_stabilizing_fun_minimal f_1 f_2 IH'_f H_f_default)).
+    destruct IH_s' as [<- | IH_s'] > [destruct H_f as [<- | H_f] |]; constructor; congruence.
+  - left; reflexivity.
+  - destruct (mi_1 == mi_2 : {_ = _} + {_ ≠ _}) as [-> | H_mi]; constructor; congruence.
+  - destruct (α_1 == α_2) as [-> | H_α]; try (right; congruence). specialize (IH_s' s'_2). specialize (IH_t' t'_2).
+    destruct IH_s' as [<- | IH_s'] > [destruct IH_t' as [<- | IH_t'] |].
+    + left; reflexivity.
+    + right. intros H. apply IH_t'. injection H as H. do 2 (apply inj_right_pair in H). auto.
+    + right. intros H. apply IH_s'. injection H as H _. do 3 (apply inj_right_pair in H). auto.
+  - specialize (IH_s' s'_2). destruct IH_s' as [<- | IH_s']; constructor; congruence.
+Defined.
 
 Check (λₘ: ι, λₘ: ι, Varₘ ι (MIS MIO)) $ₘ (Sₘ $ₘ Varₘ ι MIO) $ₘ Oₘ.
 (* Check (λₘ: ι, λₘ: ι, Varₘ ι (MIS MIO)) $ₘ (λₘ: ι, Varₘ ι MIO). *)
