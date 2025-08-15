@@ -1,5 +1,6 @@
 From Ltac2 Require Export Ltac2.
 From Equations Require Export Equations.
+From Equations Require Export TransparentEquations.
 From Stdlib Require Export Unicode.Utf8.
 From Stdlib Require Export Logic.Classical.
 From Stdlib Require Export Logic.FunctionalExtensionality.
@@ -20,7 +21,8 @@ Unset Program Cases.
 Unset Program Generalized Coercion.
 Unset Implicit Arguments.
 
-(* Set Typeclasses Iterative Deepening. *)
+(* #[global] Set Typeclasses Iterative Deepening. *)
+#[global] Set Typeclasses Depth 20.
 
 #[global] Set Equations With UIP.
 #[global] Set Equations Transparent.
@@ -59,7 +61,7 @@ Lemma dec_eq_def :
   EqDec A eq = ∀ x y : A, {x = y} + {x ≠ y}.
 Proof.
   intros A. auto.
-Qed.
+Defined.
 
 Instance dec_eq_impl_equations_dec_eq {A} {dec_eq_A : EqDec A eq} : Classes.EqDec A | 100 := dec_eq_A.
 
@@ -525,16 +527,14 @@ Proof.
   assert (dec_eq_list_map_f : ∀ l, {List.map f l = List.map g l} + {List.map f l ≠ List.map g l}). {
     intros l. induction l as [| a l' IH].
     - left. auto.
-    - simpl. destruct IH as [<- | IH] > [destruct (dec_eq_f a) as [<- | H_a] |].
-      + left. auto.
-      + right. congruence.
-      + right. congruence.
+    - simpl. destruct IH as [IH | IH] > [destruct (dec_eq_f a) as [H_a | H_a] |]; constructor; congruence.
   }
-  destruct (f_keys == g_keys) as [<- | H_keys], dec_eq_f_default as [<- | H_default]; try (right; congruence).
+  destruct (f_keys == g_keys) as [H_keys | H_keys], dec_eq_f_default as [H_default | H_default]; try (right; congruence).
   destruct (@dec_finite A _) as [(list_A & H_list_A) | infinite_A].
   - pose (f_values := List.map f list_A); pose (g_values := List.map g list_A).
     destruct (dec_eq_list_map_f list_A) as [H_values | H_values].
-    + assert (H_f : f = g). {
+    + left. destruct H_keys, H_default.
+      assert (H_f : f = g). {
         apply functional_extensionality. intros a. specialize (H_list_A a).
         induction list_A as [| a' list_A' IH].
         - exfalso. auto.
@@ -542,7 +542,7 @@ Proof.
           + auto.
           + auto.
       }
-      left. apply irrelevant_stabilizing_fun; auto.
+      apply irrelevant_stabilizing_fun; auto.
     + right. ltac1:(intros [=H_f]). apply H_values; clear H_list_A H_values. induction list_A as [| a list_A' IH].
       * reflexivity.
       * change (f_values = g_values). subst f_values g_values. simpl. f_equal.
@@ -551,7 +551,7 @@ Proof.
   - pose (f_values := List.map f f_keys); pose (g_values := List.map g f_keys).
     pose (b_f := f (` (infinite_A f_keys))). pose (b_g := g (` (infinite_A f_keys))).
     destruct (dec_eq_list_map_f f_keys) as [H_values | H_values] > [destruct (dec_eq_f (` (infinite_A f_keys))) as [H_b | H_b] |].
-    + change (b_f = b_g) in H_b.
+    + left. destruct H_keys, H_default. change (b_f = b_g) in H_b.
       assert (H_f : f = g). {
         apply functional_extensionality. intros a. clear dec_eq_list_map_f.
         revert f stabilizing_f f_values b_f g stabilizing_g g_values b_g dec_eq_f H_values H_b; induction f_keys as [| a' f_keys' IH]; intros f stabilizing_f f_values b_f g stabilizing_g g_values b_g dec_eq_f H_values H_b.
@@ -608,9 +608,9 @@ Proof.
             specialize (IH f' stabilizing_f' g' stabilizing_g' dec_eq_f' H_values' H_b'). subst f' g'; simpl in IH.
             destruct (a == a') as [<- | _]; auto.
       }
-      left. apply irrelevant_stabilizing_fun; auto.
+      apply irrelevant_stabilizing_fun; auto.
     + right. ltac1:(intros [=H_f]). apply H_b. apply equal_f; auto.
-    + right. ltac1:(intros [=H_f]). apply H_values; clear stabilizing_f stabilizing_g H_values. induction f_keys as [| a f_keys' IH].
+    + right. destruct H_keys, H_default. ltac1:(intros [=H_f]). apply H_values; clear stabilizing_f stabilizing_g H_values. induction f_keys as [| a f_keys' IH].
       * reflexivity.
       * change (f_values = g_values). subst f_values g_values. simpl. f_equal.
         -- apply equal_f; auto.

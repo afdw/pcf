@@ -76,29 +76,44 @@ Equations Derive NoConfusion for termₘ.
 Instance dec_eq_termₘ {μ Γ α} : EqDec (termₘ μ Γ α) eq.
 Proof.
   rewrite dec_eq_def.
-  intros s_1; induction s_1 as [Γ_1 | Γ_1 | Γ_1 | Γ_1 s'_1 IH_s' f_1 IH_f IH_f_default | Γ_1 α_1 | Γ_1 α_1 mi_1 | Γ_1 α_1 β_1 s'_1 IH_s' t'_1 IH_t' | Γ_1 α_1 β_1 s'_1 IH_s']; intros s_2; ltac1:(dependent elimination s_2 as [@Oₘ Γ_2 | @Pₘ Γ_2 | @Sₘ Γ_2 | @switchₘ Γ_2 s'_2 f_2 | @fixₘ Γ_2 α_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2 | @Absₘ Γ_2 α_2 β_2 s'_2]); try (right; congruence).
-  - left; reflexivity.
-  - left; reflexivity.
-  - left; reflexivity.
-  - specialize (IH_s' s'_2). ltac1:(pose proof (IH'_f := λ n, IH_f n (f_2 n))); clear IH_f.
+  intros s_1; induction s_1 as [Γ_1 | Γ_1 | Γ_1 | Γ_1 s'_1 IH_s' f_1 IH_f IH_f_default | Γ_1 α_1 | Γ_1 α_1 mi_1 | Γ_1 α_1 β_1 s'_1 IH_s' t'_1 IH_t' | Γ_1 α_1 β_1 s'_1 IH_s']; intros s_2.
+  - ltac1:(dependent elimination s_2 as [@Oₘ Γ_2 | @switchₘ Γ_2 s'_2 f_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2]); constructor; congruence.
+  - ltac1:(dependent elimination s_2 as [@Pₘ Γ_2 | @Sₘ Γ_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2 | @Absₘ Γ_2 α_2 β_2 s'_2]); constructor; congruence.
+  - ltac1:(dependent elimination s_2 as [@Pₘ Γ_2 | @Sₘ Γ_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2 | @Absₘ Γ_2 α_2 β_2 s'_2]); constructor; congruence.
+  - ltac1:(dependent elimination s_2 as [@Oₘ Γ_2 | @switchₘ Γ_2 s'_2 f_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2]); try (right; congruence).
+    specialize (IH_s' s'_2). ltac1:(pose proof (IH'_f := λ n, IH_f n (f_2 n))); clear IH_f.
     assert (H_f_default : {stabilizing_fun_default f_1 = stabilizing_fun_default f_2} + {stabilizing_fun_default f_1 ≠ stabilizing_fun_default f_2}). {
       remember (stabilizing_fun_default f_1) as f_default_1 eqn:H_f_default_1; remember (stabilizing_fun_default f_2) as f_default_2 eqn:H_f_default_2. destruct f_default_1 as [t'_1 |], f_default_2 as [t'_2 |]; try (right; congruence).
       - specialize (IH_f_default t'_2). destruct IH_f_default; constructor; congruence.
       - left; reflexivity.
     }
     ltac1:(pose proof (H_f := dec_eq_stabilizing_fun_minimal f_1 f_2 IH'_f H_f_default)).
-    destruct IH_s' as [<- | IH_s'] > [destruct H_f as [<- | H_f] |]; constructor; congruence.
-  - left; reflexivity.
-  - destruct (mi_1 == mi_2 : {_ = _} + {_ ≠ _}) as [-> | H_mi]; constructor; congruence.
-  - destruct (α_1 == α_2) as [-> | H_α]; try (right; congruence). specialize (IH_s' s'_2). specialize (IH_t' t'_2).
-    destruct IH_s' as [<- | IH_s'] > [destruct IH_t' as [<- | IH_t'] |].
-    + left; reflexivity.
-    + right. intros H. apply IH_t'. injection H as H. do 2 (apply inj_right_pair in H). auto.
+    destruct IH_s' as [IH_s' | IH_s'] > [destruct H_f as [H_f | H_f] |]; constructor; congruence.
+  - ltac1:(dependent elimination s_2 as [@fixₘ Γ_2 α_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2 | @Absₘ Γ_2 α_2 β_2 s'_2]); constructor; congruence.
+  - ltac1:(dependent elimination s_2 as [@Oₘ Γ_2 | @Pₘ Γ_2 | @Sₘ Γ_2 | @switchₘ Γ_2 s'_2 f_2 | @fixₘ Γ_2 α_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2 | @Absₘ Γ_2 α_2 β_2 s'_2]); try (right; congruence).
+    destruct (mi_1 == mi_2 : {_ = _} + {_ ≠ _}) as [-> | H_mi]; constructor; congruence.
+  - ltac1:(dependent elimination s_2 as [@Oₘ Γ_2 | @Pₘ Γ_2 | @Sₘ Γ_2 | @switchₘ Γ_2 s'_2 f_2 | @fixₘ Γ_2 α_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2 | @Absₘ Γ_2 α_2 β_2 s'_2]); try (right; congruence).
+    destruct (α_1 == α_2) as [-> | H_α]; try (right; congruence). specialize (IH_s' s'_2). specialize (IH_t' t'_2).
+    destruct IH_s' as [IH_s' | IH_s'] > [destruct IH_t' as [IH_t' | IH_t'] |].
+    + left; congruence.
+    + right. intros H. apply IH_t'. injection H as _ H. do 2 (apply inj_right_pair in H). auto.
     + right. intros H. apply IH_s'. injection H as H _. do 3 (apply inj_right_pair in H). auto.
-  - specialize (IH_s' s'_2). destruct IH_s' as [<- | IH_s']; constructor; congruence.
+  - ltac1:(dependent elimination s_2 as [@Pₘ Γ_2 | @Sₘ Γ_2 | @fixₘ Γ_2 α_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2 | @Absₘ Γ_2 α_2 β_2 s'_2]); try (right; congruence).
+    specialize (IH_s' s'_2). destruct IH_s' as [IH_s' | IH_s']; constructor; congruence.
 Defined.
 
 Check (λₘ: ι, λₘ: ι, Varₘ ι (MIS MIO)) $ₘ (Sₘ $ₘ Varₘ ι MIO) $ₘ Oₘ.
-(* Check (λₘ: ι, λₘ: ι, Varₘ ι (MIS MIO)) $ₘ (λₘ: ι, Varₘ ι MIO). *)
+Fail Check (λₘ: ι, λₘ: ι, Varₘ ι (MIS MIO)) $ₘ (λₘ: ι, Varₘ ι MIO).
 
 Check λₘ: ι, switchₘ (Varₘ ι MIO) (Zm_of_Z 0 ↦₀ Sₘ $ₘ (Sₘ $ₘ Oₘ), Zm_of_Z 1 ↦₀ Oₘ, _ ↦₀ Sₘ $ₘ Oₘ).
+
+Check eq_refl : ((λₘ: ι, λₘ: ι, Varₘ ι (MIS MIO)) $ₘ (Sₘ $ₘ Varₘ ι MIO) $ₘ Oₘ == (λₘ: ι, λₘ: ι, Varₘ ι (MIS MIO)) $ₘ (Sₘ $ₘ Varₘ ι MIO) $ₘ Oₘ) = left _.
+
+Check eq_refl : (Oₘ == Sₘ $ₘ Oₘ) = right _.
+
+Goal ∃ H, ((λₘ: ι, switchₘ (Varₘ ι MIO) (Zm_of_Z 0 ↦₀ Sₘ $ₘ (Sₘ $ₘ Oₘ), Zm_of_Z 1 ↦₀ Oₘ, _ ↦₀ Sₘ $ₘ Oₘ)) : termₘ 3 [] _) == (λₘ: ι, switchₘ (Varₘ ι MIO) (Zm_of_Z 0 ↦₀ Sₘ $ₘ (Sₘ $ₘ Oₘ), Zm_of_Z 1 ↦₀ Oₘ, _ ↦₀ Sₘ $ₘ Oₘ)) = left H.
+Proof.
+  eexists. reflexivity.
+Qed.
+
+Compute ` (bool_of_sumbool (((λₘ: ι, switchₘ (Varₘ ι MIO) (Zm_of_Z 100 ↦₀ Sₘ $ₘ (Sₘ $ₘ Oₘ), Zm_of_Z 11 ↦₀ Oₘ, _ ↦₀ Sₘ $ₘ Oₘ)) : termₘ 10 [] _) == (λₘ: ι, switchₘ (Varₘ ι MIO) (Zm_of_Z 0 ↦₀ Sₘ $ₘ (Sₘ $ₘ Oₘ), Zm_of_Z 1 ↦₀ Oₘ, _ ↦₀ Sₘ $ₘ Oₘ)))).

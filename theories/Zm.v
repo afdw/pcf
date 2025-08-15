@@ -73,7 +73,7 @@ Proof.
   intros n m. destruct (Z.eq_dec (Zm_n n) (Zm_n m)) as [H_n_m | H_n_m].
   - left. apply irrelevant_Zm. auto.
   - right. intros <-. auto.
-Qed.
+Defined.
 
 Instance dec_eq_Zm {μ} : EqDec (Zm μ) eq := Zm_eq_dec.
 
@@ -189,3 +189,13 @@ Instance dec_finite_Zm {μ} : DecFinite (Zm μ) :=
   | left H_μ => inr (rew <- [λ μ, infinite (Zm μ)] H_μ in infinite_Zm)
   | right H_μ => inl (finite_Zm H_μ)
   end.
+
+Goal ∃ H, (1 ↦₀ Zm_of_Z 2, _ ↦₀ (Zm_of_Z 3 : Zm 5)) == (1 ↦₀ Zm_of_Z 2, _ ↦₀ Zm_of_Z 3) = left H.
+Proof.
+  eexists. reflexivity.
+Qed.
+
+Goal ∃ H, (1 ↦₀ Zm_of_Z 2, _ ↦₀ (Zm_of_Z 3 : Zm 0)) == (1 ↦₀ Zm_of_Z 2, _ ↦₀ Zm_of_Z 3) = left H.
+Proof.
+  eexists. reflexivity.
+Qed.
