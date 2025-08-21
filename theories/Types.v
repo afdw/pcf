@@ -12,7 +12,7 @@ Open Scope types_scope.
 Notation "'ι'" := Base : type_scope.
 Notation "α  '⇒'  β" := (Func α β) (at level 60, right associativity) : type_scope.
 
-Equations Derive NoConfusion for type.
+Equations Derive NoConfusionHom for type.
 
 Instance dec_eq_type : EqDec type eq.
 Proof.
@@ -52,3 +52,35 @@ Proof.
   - auto.
   - simpl. rewrite IH. auto.
 Qed.
+
+Definition renaming Γ Δ := ∀ (α : type), mem_index α Δ → mem_index α Γ.
+
+Definition renaming_id {Γ} : renaming Γ Γ :=
+  λ _ mi, mi.
+
+Equations renaming_cons {Γ Δ} α (mi : mem_index α Γ) (σ : renaming Γ Δ) : renaming Γ (α :: Δ) :=
+  | α, mi, σ, _, MIO => mi
+  | α, mi, σ, _, MIS mi_1' => σ _ mi_1'.
+
+Definition renaming_shift {α Γ} : renaming (α :: Γ) Γ :=
+  λ _ mi, MIS mi.
+
+Definition renaming_comp {Γ Δ Θ} (τ : renaming Δ Θ) (σ : renaming Γ Δ) : renaming Γ Θ :=
+  λ _ mi, σ _ (τ _ mi).
+
+Definition renaming_up {α Γ Δ} (σ : renaming Γ Δ) : renaming (α :: Γ) (α :: Δ) :=
+  renaming_cons _ MIO (renaming_comp σ renaming_shift).
+
+(* #[program]
+Definition renaming_cons {Γ Δ} α (mi : mem_index α Γ) (σ : renaming Γ Δ) : renaming Γ (α :: Δ) :=
+  λ β mi_renaming,
+  match mi_renaming in (mem_index _ Σ) return Σ = α :: Δ → mem_index β Γ with
+  | MIO => _
+  | MIS mi_renaming' => _
+  end eq_refl.
+Next Obligation.
+  intros. injection H as H _. rewrite H. apply mi.
+Defined.
+Next Obligation.
+  intros. injection H as _ H. rewrite H in mi_renaming'. apply (σ _ mi_renaming').
+Defined. *)
