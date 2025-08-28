@@ -67,16 +67,6 @@ Proof.
     + rewrite ! (Zm_in_bounds_impl_mod _ _ (Zm_in_bounds_Zm H_μ _)) in H. auto.
 Qed.
 
-Lemma Zm_eq_dec {μ} :
-  ∀ n m : Zm μ, {n = m} + {n ≠ m}.
-Proof.
-  intros n m. destruct (Z.eq_dec (Zm_n n) (Zm_n m)) as [H_n_m | H_n_m].
-  - left. apply irrelevant_Zm. auto.
-  - right. intros <-. auto.
-Defined.
-
-Instance dec_eq_Zm {μ} : EqDec (Zm μ) eq := Zm_eq_dec.
-
 #[program]
 Definition Zm_of_Z {μ} (n : Z) : Zm μ := {|
   Zm_n := (n mod Z.of_nat μ)%Z;
@@ -106,6 +96,15 @@ Proof.
 Qed.
 
 Compute Zm_of_Z 7 : Zm 3.
+
+Instance arbitrary_Zm {μ} : Arbitrary (Zm μ) := Zm_of_Z 0%Z.
+
+Instance dec_eq_Zm {μ} : EqDec (Zm μ) eq.
+Proof.
+  intros n m. destruct (Z.eq_dec (Zm_n n) (Zm_n m)) as [H_n_m | H_n_m].
+  - left. apply irrelevant_Zm. auto.
+  - right. intros <-. auto.
+Defined.
 
 Definition Zm_le {μ} (n m : Zm μ) := (Zm_n n ≤ Zm_n m)%Z.
 
@@ -199,3 +198,7 @@ Goal ∃ H, (1 ↦₀ Zm_of_Z 2, _ ↦₀ (Zm_of_Z 3 : Zm 0)) == (1 ↦₀ Zm_of
 Proof.
   eexists. reflexivity.
 Qed.
+
+Definition Zm_pred {μ} (n : Zm μ) : Zm μ := Zm_of_Z (Z.pred (Zm_n n)).
+
+Definition Zm_succ {μ} (n : Zm μ) : Zm μ := Zm_of_Z (Z.succ (Zm_n n)).

@@ -42,19 +42,26 @@ Disable Notation "_ ≥ _".
 
 Notation "x ≤ y" := (le x y) : nat_scope.
 Notation "x ≥ y" := (ge x y) : nat_scope.
-Notation "x ≤ y ≤ z" := (x ≤ y /\ y ≤ z) : nat_scope.
-Notation "x ≤ y < z" := (x ≤ y /\ y < z) : nat_scope.
-Notation "x < y ≤ z" := (x < y /\ y ≤ z) : nat_scope.
+Notation "x ≤ y ≤ z" := (x ≤ y ∧ y ≤ z) : nat_scope.
+Notation "x ≤ y < z" := (x ≤ y ∧ y < z) : nat_scope.
+Notation "x < y ≤ z" := (x < y ∧ y ≤ z) : nat_scope.
 
 Notation "x ≤ y" := (Z.le x y) : Z_scope.
 Notation "x ≥ y" := (Z.ge x y) : Z_scope.
-Notation "x ≤ y ≤ z" := (x ≤ y /\ y ≤ z)%Z : Z_scope.
-Notation "x ≤ y < z" := (x ≤ y /\ y < z)%Z : Z_scope.
-Notation "x < y ≤ z" := (x < y /\ y ≤ z)%Z : Z_scope.
+Notation "x ≤ y ≤ z" := (x ≤ y ∧ y ≤ z)%Z : Z_scope.
+Notation "x ≤ y < z" := (x ≤ y ∧ y < z)%Z : Z_scope.
+Notation "x < y ≤ z" := (x < y ∧ y ≤ z)%Z : Z_scope.
 
 (* Notation " ! " := (False_rect _ _) : program_scope. (* copied from Corelib.Program.Utils *) *)
 
 Notation " ` t " := (proj1_sig t) (at level 10, t at next level) : program_scope. (* copied from Corelib.Program.Utils *)
+
+Class Arbitrary (A : Type) : Type :=
+  | arbitrary : A.
+
+Instance arbitrary_nat : Arbitrary nat := 0.
+
+Instance arbitrary_Z : Arbitrary Z := 0%Z.
 
 Lemma dec_eq_def :
   ∀ A,
@@ -257,6 +264,25 @@ Qed.
 
 Instance dec_finite_Z : DecFinite Z := inr infinite_Z.
 
+Lemma option_map_option_map {A B C} :
+  ∀ (g : B → C) (f : A → B) o,
+  option_map g (option_map f o) = option_map (λ a, g (f a)) o.
+Proof.
+  intros g f o. destruct o; reflexivity.
+Qed.
+
+Lemma list_filter_list_filter {A} :
+  ∀ g f (l : list A),
+  List.filter g (List.filter f l) = List.filter (λ a, f a && g a) l.
+Proof.
+  intros g f l. induction l as [| a l' IH].
+  - reflexivity.
+  - simpl. destruct (f a); simpl; destruct (g a); simpl; congruence.
+Qed.
+
+Definition list_remove {A} {dec_eq_A : EqDec A eq} (x : A) l :=
+  List.filter (λ y, negb (` (bool_of_sumbool (y == x)))) l.
+
 Fixpoint list_sorted_nodup {A} {R : A → A → Prop} {pre_order_R : PreOrder R} (l : list A) :=
   match l with
   | [] => True
@@ -456,9 +482,6 @@ Proof.
            apply transitivity with y; auto.
 Qed.
 
-Definition list_remove {A} {dec_eq_A : EqDec A eq} (x : A) l :=
-  List.filter (λ y, negb (` (bool_of_sumbool (y == x)))) l.
-
 Lemma list_In_list_remove {A} {dec_eq_A : EqDec A eq} :
   ∀ (x : A) l y,
   List.In y (list_remove x l) ↔ List.In y l ∧ y ≠ x.
@@ -493,6 +516,17 @@ Proof.
 Defined.
 
 Check MIS (MIS (MIS MIO)).
+
+Definition dec_eq_list_In {A} {dec_eq_A : EqDec A eq} (a : A) l : mem_index a l + (¬ List.In a l).
+Proof.
+  induction l as [| a' l' IH]; simpl.
+  - right. auto.
+  - destruct (a' == a) as [-> | H_a'].
+    + left. apply MIO.
+    + destruct IH as [mi | IH].
+      * left. apply MIS, mi.
+      * right. ltac1:(intuition auto).
+Defined.
 
 Definition stabilizing {A B} (f : A → B) keys :=
   ¬ inhabited A ∨ ∃ b, ∀ a, List.In a keys ∨ f a = b.
@@ -728,6 +762,18 @@ Proof.
   - ltac1:(intuition auto).
 Qed.
 
+Definition dec_stabilizing_fun_canonical {A B} {dec_finite_A : DecFinite A} {R : A → A → Prop} {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_le_R : DecLe R} {dec_eq_B : EqDec B eq} :
+  ∀ f : A →₀ B,
+  {stabilizing_fun_canonical f} + {¬ stabilizing_fun_canonical f}.
+Proof.
+  intros f. destruct (f == stabilizing_fun_canonize f) as [H_f | H_f].
+  - left. rewrite H_f. apply stabilizing_fun_canonical_stabilizing_fun_canonize.
+  - right. intros H. apply H_f. apply stabilizing_fun_canonical_impl_canonical.
+    + auto.
+    + auto.
+    + apply stabilizing_fun_canonical_stabilizing_fun_canonize.
+Defined.
+
 #[program]
 Definition stabilizing_fun_const {A B} {dec_finite_A : DecFinite A} {R : A → A → Prop} {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_le_R : DecLe R} b : A →₀ B := {|
   stabilizing_fun_f := λ _, b;
@@ -750,7 +796,7 @@ Next Obligation.
 Qed.
 
 #[program]
-Definition stabilizing_fun_update {A B} {dec_finite_A : DecFinite A} {dec_eq_A : EqDec A eq} {R : A → A → Prop} {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_le_R : DecLe R} {dec_eq_B : EqDec B eq} (f : A →₀ B) a b := {|
+Definition stabilizing_fun_update {A B} {dec_finite_A : DecFinite A} {dec_eq_A : EqDec A eq} {R : A → A → Prop} {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_le_R : DecLe R} {dec_eq_B : EqDec B eq} (f : A →₀ B) a b : A →₀ B := {|
   stabilizing_fun_f := λ a', if a' == a then b else f a';
   stabilizing_fun_keys :=
     match @dec_finite A _ with
@@ -779,6 +825,55 @@ Next Obligation.
       * rewrite list_In_list_insert_nodup. specialize (H_b_stabilizing a'). destruct (a' == a) as [-> | H_a']; ltac1:(intuition auto).
 Qed.
 
+#[program]
+Definition stabilizing_fun_update_default {A B} {dec_finite_A : DecFinite A} {dec_eq_B : EqDec B eq} (f : A →₀ B) b : A →₀ B := {|
+  stabilizing_fun_f := λ a,
+    match @dec_finite A _ with
+    | inl _ => f a
+    | inr infinite_A =>
+      if f a == f (` (infinite_A (stabilizing_fun_keys f))) then
+        b
+      else
+        f a
+    end;
+  stabilizing_fun_keys :=
+    match @dec_finite A _ with
+    | inl _ => stabilizing_fun_keys f
+    | inr infinite_A =>
+      List.filter (λ a, ` (bool_of_sumbool (f a == f (` (infinite_A (stabilizing_fun_keys f))))) || negb (` (bool_of_sumbool (f a == b)))) (stabilizing_fun_keys f)
+    end;
+  stabilizing_fun_default :=
+    match @dec_finite A _ with
+    | inl _ => stabilizing_fun_default f
+    | inr infinite_A =>
+      if stabilizing_fun_default f == Some (f (` (infinite_A (stabilizing_fun_keys f)))) then
+        Some b
+      else
+        stabilizing_fun_default f
+    end
+|}.
+Next Obligation.
+  intros A B dec_finite_A dec_eq_B f b. destruct f as [f f_keys f_default stabilizing_f].
+  simpl. unfold stabilizing in stabilizing_f |- *. destruct stabilizing_f as [H | (b_stabilizing & H_b_stabilizing)].
+  - left. auto.
+  - right. destruct (@dec_finite A _) as [(list_A & H_list_A) | infinite_A].
+    + exists b_stabilizing. auto.
+    + exists b. intros a. rewrite List.filter_In.
+      ltac1:(replace (f (` (infinite_A f_keys))) with b_stabilizing; revgoals). {
+        destruct (infinite_A f_keys) as (a'' & H_a''). simpl. specialize (H_b_stabilizing a''). ltac1:(intuition congruence).
+      }
+      destruct (f a == b_stabilizing) as [H_1_f_a | H_1_f_a] > [| destruct (f a == b) as [H_2_f_a | H_2_f_a]]; simpl.
+      * ltac1:(intuition auto).
+      * ltac1:(intuition auto).
+      * specialize (H_b_stabilizing a). ltac1:(intuition congruence).
+Qed.
+
+Axiom stabilizing_fun_const_erased : ∀ {A B} (b : B), A →₀ B.
+
+Axiom stabilizing_fun_update_erased : ∀ {A B} (f : A →₀ B) (a : A) (b : B), A →₀ B.
+
+Axiom stabilizing_fun_update_default_erased : ∀ {A B} (f : A →₀ B) (b : B), A →₀ B.
+
 Declare Scope stabilizing_fun_scope.
 Delimit Scope stabilizing_fun_scope with stabilizing_fun.
 Bind Scope stabilizing_fun_scope with stabilizing_fun.
@@ -787,6 +882,12 @@ Open Scope stabilizing_fun_scope.
 Notation "'_' '↦₀' b" := (stabilizing_fun_const b) (at level 10, b at level 69, format "'[' '_'  '↦₀'  b ']'") : stabilizing_fun_scope.
 Notation "( '_' : A ) '↦₀' b" := (@stabilizing_fun_const A _ _ _ _ _ _ _ b) (at level 0, b at level 69, format "'[' '(' '_'  ':'  A ')'  '↦₀'  b ']'") : stabilizing_fun_scope.
 Notation "a '↦₀' b ',' f" := (stabilizing_fun_update f a b) (at level 70, b at level 69, f at level 200, format "'[' a  '↦₀'  b ',' '/' f ']'") : stabilizing_fun_scope.
+Notation "'_' '↦₀' b ',' f" := (stabilizing_fun_update_default f b) (at level 10, b at level 69, f at level 200, format "'[' '_'  '↦₀'  b ',' '/' f ']'") : stabilizing_fun_scope.
+
+Notation "'_' '↦₀ₑ' b" := (stabilizing_fun_const_erased b) (at level 10, b at level 69, format "'[' '_'  '↦₀ₑ'  b ']'") : stabilizing_fun_scope.
+Notation "( '_' : A ) '↦₀ₑ' b" := (@stabilizing_fun_const_erased A _ b) (at level 0, b at level 69, format "'[' '(' '_'  ':'  A ')'  '↦₀ₑ'  b ']'") : stabilizing_fun_scope.
+Notation "a '↦₀ₑ' b ',' f" := (stabilizing_fun_update_erased f a b) (at level 70, b at level 69, f at level 200, format "'[' a  '↦₀ₑ'  b ',' '/' f ']'") : stabilizing_fun_scope.
+Notation "'_' '↦₀ₑ' b ',' f" := (stabilizing_fun_update_default_erased f b) (at level 10, b at level 69, f at level 200, format "'[' '_'  '↦₀ₑ'  b ',' '/' f ']'") : stabilizing_fun_scope.
 
 Lemma stabilizing_fun_canonical_stabilizing_fun_const {A B} {dec_finite_A : DecFinite A} {R : A → A → Prop} {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_le_R : DecLe R} :
   ∀ b : B,
@@ -833,23 +934,37 @@ Proof.
   - exfalso. destruct H_f_A as [H_f_A]. apply (not_finite_and_infinite A); auto.
 Qed.
 
+Lemma stabilizing_fun_canonical_stabilizing_fun_update_default {A B} {dec_finite_A : DecFinite A} {R : A → A → Prop} {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_le_R : DecLe R} {dec_eq_B : EqDec B eq} :
+  ∀ (f : A →₀ B) b,
+  stabilizing_fun_canonical f →
+  stabilizing_fun_canonical (_ ↦₀ b, f).
+Proof.
+  intros f b canonical_f. unfold stabilizing_fun_canonical in canonical_f |- *. destruct f as [f f_keys f_default stabilizing_f]. simpl in canonical_f |- *. destruct (@dec_finite A _) as [(list_A & H_list_A) | infinite_A], f_default as [b_default |], canonical_f as (H_f_keys & H_f_A & H_f_a).
+  - exfalso. apply H_f_A. exists. exists list_A. auto.
+  - ltac1:(intuition auto).
+  - ltac1:(replace (f (` (infinite_A f_keys))) with b_default; revgoals). {
+      destruct (infinite_A f_keys) as (a'' & H_a''). simpl. specialize (H_f_a a''). apply NNPP. ltac1:(intuition auto).
+    }
+    destruct (Some b_default == Some b_default) as [_ |] > [| congruence]. split > [| split].
+    + apply list_sorted_nodup_list_filter. auto.
+    + auto.
+    + intros a. rewrite List.filter_In. specialize (H_f_a a). destruct (f a == b_default) as [H_1_f_a | H_1_f_a] > [| destruct (f a == b) as [H_2_f_a | H_2_f_a]]; simpl; ltac1:(intuition congruence).
+  - exfalso. destruct H_f_A as [H_f_A]. apply (not_finite_and_infinite A); auto.
+Qed.
+
 #[program]
-Definition stabilizing_fun_map_minimal {A B C} {dec_finite_A : DecFinite A} {dec_eq_C : EqDec C eq} (g_f : A → C) (f : A →₀ B) (H_g_f : ∀ a_1 a_2, f a_1 = f a_2 → g_f a_1 = g_f a_2) : A →₀ C := {|
-  stabilizing_fun_f := λ a, g_f a;
+Definition stabilizing_fun_map_minimal {A B C} {dec_finite_A : DecFinite A} {dec_eq_B : EqDec B eq} {dec_eq_C : EqDec C eq} (g_f : A → C) (g_f_default : option C) (f : A →₀ B) (H_g_f : ∀ a_1 a_2, f a_1 = f a_2 → g_f a_1 = g_f a_2) : A →₀ C := {|
+  stabilizing_fun_f := g_f;
   stabilizing_fun_keys :=
     match @dec_finite A _ with
     | inl _ => stabilizing_fun_keys f
     | inr infinite_A =>
-      List.filter (λ a, negb (` (bool_of_sumbool (g_f a == g_f (` (infinite_A (stabilizing_fun_keys f))))))) (stabilizing_fun_keys f)
+      List.filter (λ a, ` (bool_of_sumbool (f a == f (` (infinite_A (stabilizing_fun_keys f))))) || negb (` (bool_of_sumbool (g_f a == g_f (` (infinite_A (stabilizing_fun_keys f))))))) (stabilizing_fun_keys f)
     end;
-  stabilizing_fun_default :=
-    match @dec_finite A _ with
-    | inl _ => None
-    | inr infinite_A => Some (g_f (` (infinite_A (stabilizing_fun_keys f))))
-    end;
+  stabilizing_fun_default := g_f_default;
 |}.
 Next Obligation.
-  intros A B C dec_finite_A dec_eq_C g_f f H_g_f. destruct f as [f f_keys f_default stabilizing_f]. simpl in H_g_f |- *.
+  intros A B C dec_finite_A dev_eq_B dec_eq_C g_f g_f_default f H_g_f. destruct f as [f f_keys f_default stabilizing_f]. simpl in H_g_f |- *.
   unfold stabilizing in stabilizing_f |- *. destruct stabilizing_f as [H | (b_stabilizing & H_b_stabilizing)].
   - left. auto.
   - destruct (@dec_finite A _) as [(list_A & H_list_A) | infinite_A].
@@ -862,35 +977,151 @@ Next Obligation.
         destruct (infinite_A f_keys) as (a' & H_a'). simpl. specialize (H_b_stabilizing a'). ltac1:(intuition congruence).
       }
       right. exists (g_f (` (infinite_A f_keys))). intros a.
-      rewrite List.filter_In. specialize (H_b_stabilizing a). specialize (H_g_f a (` (infinite_A f_keys))). destruct (g_f a == g_f (` (infinite_A f_keys))) as [H_g_f_a | H_g_f_a]; simpl; ltac1:(intuition congruence).
+      rewrite List.filter_In. specialize (H_b_stabilizing a). specialize (H_g_f a (` (infinite_A f_keys))). destruct (f a == f (` (infinite_A f_keys))) as [H_f_a | H_f_a], (g_f a == g_f (` (infinite_A f_keys))) as [H_g_f_a | H_g_f_a]; simpl; ltac1:(intuition congruence).
 Qed.
 
-Definition stabilizing_fun_map {A B C} {dec_finite_A : DecFinite A} {dec_eq_C : EqDec C eq} (g : B → C) (f : A →₀ B) : A →₀ C :=
-  stabilizing_fun_map_minimal (λ a, g (f a)) f (λ a_1 a_2 H, f_equal _ H).
+Definition stabilizing_fun_map {A B C} {dec_finite_A : DecFinite A} {dec_eq_B : EqDec B eq} {dec_eq_C : EqDec C eq} (g : B → C) (f : A →₀ B) : A →₀ C :=
+  stabilizing_fun_map_minimal (λ a, g (f a)) (option_map g (stabilizing_fun_default f)) f (λ a_1 a_2 H, f_equal _ H).
 
-Lemma stabilizing_fun_canonical_stabilizing_fun_map_minimal {A B C} {dec_finite_A : DecFinite A} {R : A → A → Prop} {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_eq_C : EqDec C eq} :
-  ∀ (g_f : A → C) (f : A →₀ B) (H_g_f : ∀ a_1 a_2, f a_1 = f a_2 → g_f a_1 = g_f a_2),
-  stabilizing_fun_canonical f →
-  stabilizing_fun_canonical (stabilizing_fun_map_minimal g_f f H_g_f).
-Proof.
-  intros g_f f H_g_f canonical_f. unfold stabilizing_fun_canonical in canonical_f |- *. destruct f as [f f_keys f_default stabilizing_f]. simpl in H_g_f, canonical_f |- *. destruct (@dec_finite A _) as [(list_A & H_list_A) | infinite_A], f_default as [b_default |], canonical_f as (H_f_keys & H_f_A & H_f_a).
-  - exfalso. apply H_f_A. exists. exists list_A. auto.
-  - ltac1:(intuition auto).
-  - split > [| split].
-    + apply list_sorted_nodup_list_filter; auto.
-    + auto.
-    + intros a.
-      ltac1:(replace b_default with (f (` (infinite_A f_keys))) in H_f_a; revgoals). {
-        destruct (infinite_A f_keys) as (a' & H_a'). simpl. specialize (H_f_a a'). apply NNPP. ltac1:(intuition congruence).
-      }
-      rewrite List.filter_In. specialize (H_f_a a). specialize (H_g_f a (` (infinite_A f_keys))). destruct (g_f a == g_f (` (infinite_A f_keys))) as [H_g_f_a | H_g_f_a]; simpl; ltac1:(intuition congruence).
-  - exfalso. destruct H_f_A as [H_f_A]. apply (not_finite_and_infinite A); auto.
-Qed.
-
-Lemma stabilizing_fun_canonical_stabilizing_fun_map {A B C} {dec_finite_A : DecFinite A} {R : A → A → Prop} {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_eq_C : EqDec C eq} :
+Lemma stabilizing_fun_canonical_stabilizing_fun_map {A B C} {dec_finite_A : DecFinite A} {R : A → A → Prop} {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_eq_B : EqDec B eq} {dec_eq_C : EqDec C eq} :
   ∀ (g : B → C) (f : A →₀ B),
   stabilizing_fun_canonical f →
   stabilizing_fun_canonical (stabilizing_fun_map g f).
 Proof.
-  intros g f canonical_f. apply stabilizing_fun_canonical_stabilizing_fun_map_minimal; auto.
+  intros g f canonical_f. unfold stabilizing_fun_canonical in canonical_f |- *. destruct f as [f f_keys f_default stabilizing_f]. simpl in canonical_f |- *. destruct (@dec_finite A _) as [(list_A & H_list_A) | infinite_A], f_default as [b_default |], canonical_f as (H_f_keys & H_f_A & H_f_a).
+  - exfalso. apply H_f_A. exists. exists list_A. auto.
+  - simpl. ltac1:(intuition auto).
+  - simpl. split > [| split].
+    + apply list_sorted_nodup_list_filter; auto.
+    + auto.
+    + intros a.
+      ltac1:(replace (f (` (infinite_A f_keys))) with b_default; revgoals). {
+        destruct (infinite_A f_keys) as (a' & H_a'). simpl. specialize (H_f_a a'). apply NNPP. ltac1:(intuition congruence).
+      }
+      rewrite List.filter_In. specialize (H_f_a a). destruct (f a == b_default) as [H_f_a' | H_f_a'], (g (f a) == g b_default) as [H_g_f_a | H_g_f_a]; simpl; ltac1:(intuition congruence).
+  - exfalso. destruct H_f_A as [H_f_A]. apply (not_finite_and_infinite A); auto.
 Qed.
+
+Lemma stabilizing_fun_map_id {A B} {dec_finite_A : DecFinite A} {R : A → A → Prop} {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_eq_B_1 : EqDec B eq} {dec_eq_B_2 : EqDec B eq} :
+  ∀ (g : B → B) (f : A →₀ B),
+  (∀ a, g (f a) = f a) →
+  option_map g (stabilizing_fun_default f) = stabilizing_fun_default f →
+  @stabilizing_fun_map _ _ _ _ dec_eq_B_1 dec_eq_B_2 g f = f.
+Proof.
+  intros g f H_g_f H_g_default.
+  ltac1:(replace dec_eq_B_2 with dec_eq_B_1 in *; revgoals). {
+    apply functional_extensionality_dep; intros b_1; apply functional_extensionality_dep; intros b_2. destruct (dec_eq_B_1 b_1 b_2), (dec_eq_B_2 b_1 b_2); try (congruence); f_equal; apply proof_irrelevance.
+  }
+  destruct f as [f f_keys f_default stabilizing_f]. simpl in H_g_f, H_g_default |- *. apply irrelevant_stabilizing_fun; simpl.
+  - apply functional_extensionality; intros a. rewrite H_g_f. reflexivity.
+  - destruct (@dec_finite A _) as [(list_A & H_list_A) | infinite_A].
+    + reflexivity.
+    + rewrite <- List.filter_true. f_equal. apply functional_extensionality; intros a. rewrite ! H_g_f.  destruct (f a == f (` (infinite_A f_keys))); reflexivity.
+  - rewrite H_g_default. reflexivity.
+Qed.
+
+Lemma stabilizing_fun_map_stabilizing_fun_map {A B C D} {dec_finite_A : DecFinite A} {R : A → A → Prop} {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_eq_B : EqDec B eq} {dec_eq_C : EqDec C eq} {dec_eq_D : EqDec D eq} :
+  ∀ (h : C → D) (g : B → C) (f : A →₀ B),
+  stabilizing_fun_map h (stabilizing_fun_map g f) = stabilizing_fun_map (λ b, (h (g b))) f.
+Proof.
+  intros h g f. destruct f as [f f_keys f_default stabilizing_f]. apply irrelevant_stabilizing_fun; simpl.
+  - reflexivity.
+  - destruct (@dec_finite A _) as [(list_A & H_list_A) | infinite_A].
+    + reflexivity.
+    + rewrite list_filter_list_filter. f_equal. apply functional_extensionality; intros a.
+      unfold stabilizing in stabilizing_f, stabilizing_stabilizing_fun_map_g_f |- *. destruct stabilizing_f as [H | (b_stabilizing & H_b_stabilizing)].
+      * exfalso. apply H. exists. auto.
+      * ltac1:(replace (f (` (infinite_A f_keys))) with b_stabilizing; revgoals). {
+          destruct (infinite_A f_keys) as (a' & H_a'). simpl. specialize (H_b_stabilizing a'). ltac1:(intuition congruence).
+        }
+        ltac1:(replace (g (f (` (infinite_A (List.filter (λ a, ` (bool_of_sumbool (f a == b_stabilizing)) || negb (` (bool_of_sumbool (g (f a) == g b_stabilizing)))) f_keys))))) with (g b_stabilizing); revgoals). {
+          destruct (infinite_A (List.filter (λ a, ` (bool_of_sumbool (f a == b_stabilizing)) || negb (` (bool_of_sumbool (g (f a) == g b_stabilizing)))) f_keys)) as (a' & H_a'). simpl. rewrite List.filter_In in H_a'.
+          specialize (H_b_stabilizing a') as [H_b_stabilizing | H_b_stabilizing]; destruct (f a' == b_stabilizing) as [H_f_a' | H_f_a'], (g (f a') == g b_stabilizing) as [H_g_f_a' | H_g_f_a']; simpl in H_a' |- *; ltac1:(intuition congruence).
+        }
+        destruct (f a == b_stabilizing) as [H_f_a | H_f_a], (g (f a) == g b_stabilizing) as [H_g_f_a | H_g_f_a], (h (g (f a)) == h (g b_stabilizing)) as [H_h_g_f_a | H_h_g_f_a]; simpl; congruence.
+  - rewrite option_map_option_map. reflexivity.
+Qed.
+
+Lemma eq_stabilizing_fun_map {A B C} {dec_finite_A : DecFinite A} {R : A → A → Prop} {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_eq_B : EqDec B eq} {dec_eq_C : EqDec C eq} :
+  ∀ (g_1 g_2 : B → C) (f : A →₀ B),
+  (∀ a, g_1 (f a) = g_2 (f a)) →
+  option_map g_1 (stabilizing_fun_default f) = option_map g_2 (stabilizing_fun_default f) →
+  stabilizing_fun_map g_1 f = stabilizing_fun_map g_2 f.
+Proof.
+  intros g_1 g_2 f H_g_f H_g_default. destruct f as [f f_keys f_default stabilizing_f]. simpl in H_g_f, H_g_default |- *. apply irrelevant_stabilizing_fun; simpl.
+  - apply functional_extensionality. auto.
+  - destruct (@dec_finite A _) as [_ | infinite_A].
+    + reflexivity.
+    + f_equal. apply functional_extensionality; intros a. rewrite <- ! H_g_f. reflexivity.
+  - rewrite <- H_g_default. reflexivity.
+Qed.
+
+Definition stabilizing_fun_rebuild {A B} {dec_finite_A : DecFinite A} {R : A → A → Prop} {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_le_R : DecLe R} {dec_eq_B : EqDec B eq} {arbitrary_B : Arbitrary B} (f : A →₀ B) :=
+  List.fold_right
+    (λ a g, a ↦₀ f a, g)
+    (_ ↦₀
+      match stabilizing_fun_default f with
+      | Some b_default => b_default
+      | None => arbitrary
+      end)
+    (stabilizing_fun_keys f).
+
+
+Definition stabilizing_fun_rebuild_erased {A B} {dec_finite_A : DecFinite A} {R : A → A → Prop} {pre_order_R : PreOrder R} {partial_order_R : PartialOrder eq R} {total_R : Total R} {dec_le_R : DecLe R} {dec_eq_B : EqDec B eq} {arbitrary_B : Arbitrary B} (f : A →₀ B) :=
+  List.fold_right
+    (λ a g, a ↦₀ₑ f a, g)
+    (_ ↦₀ₑ
+      match stabilizing_fun_default f with
+      | Some b_default => b_default
+      | None => arbitrary
+      end)
+    (stabilizing_fun_keys f).
+
+Inductive t_closure_t {A} (R : A → A → Type) : A → A → Type :=
+  | t_closure_t_step :
+    ∀ x y,
+    R x y →
+    t_closure_t R x y
+  | trans_t_closure_t :
+    ∀ x y z,
+    t_closure_t R x y →
+    t_closure_t R y z →
+    t_closure_t R x z.
+Arguments t_closure_t_step {A R}.
+Arguments trans_t_closure_t {A R}.
+
+Fixpoint list_of_t_closure_t {A} {R : A → A → Type} {x y} (H : t_closure_t R x y) : list A :=
+  match H with
+  | t_closure_t_step x y H => [y]
+  | trans_t_closure_t x y z H_1 H_2 => list_of_t_closure_t H_1 ++ list_of_t_closure_t H_2
+  end.
+
+Inductive rts_closure_t {A} (R : A → A → Type) : A → A → Type :=
+  | rts_closure_t_step :
+    ∀ x y,
+    R x y →
+    rts_closure_t R x y
+  | refl_rts_closure_t :
+    ∀ x,
+    rts_closure_t R x x
+  | trans_rts_closure_t :
+    ∀ x y z,
+    rts_closure_t R x y →
+    rts_closure_t R y z →
+    rts_closure_t R x z
+  | sym_rts_closure_t :
+    ∀ x y,
+    rts_closure_t R x y →
+    rts_closure_t R y x.
+Arguments rts_closure_t_step {A R}.
+Arguments refl_rts_closure_t {A R}.
+Arguments trans_rts_closure_t {A R}.
+Arguments sym_rts_closure_t {A R}.
+
+Fixpoint list_of_rts_closure_t {A} {R : A → A → Type} {x y} (H : rts_closure_t R x y) : list A :=
+  match H with
+  | rts_closure_t_step x y H => [y]
+  | refl_rts_closure_t x => [x]
+  | trans_rts_closure_t x y z H_1 H_2 => list_of_rts_closure_t H_1 ++ list_of_rts_closure_t H_2
+  | sym_rts_closure_t x y H => list_of_rts_closure_t H
+  end.
