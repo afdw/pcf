@@ -1092,8 +1092,32 @@ Arguments trans_t_closure_t {A R}.
 
 Fixpoint list_of_t_closure_t {A} {R : A → A → Type} {x y} (H : t_closure_t R x y) : list A :=
   match H with
-  | t_closure_t_step x y H => [y]
-  | trans_t_closure_t x y z H_1 H_2 => list_of_t_closure_t H_1 ++ list_of_t_closure_t H_2
+  | t_closure_t_step x y H => [x; y]
+  | trans_t_closure_t x y z H_1 H_2 => list_of_t_closure_t H_1 ++ List.tl (list_of_t_closure_t H_2)
+  end.
+
+Inductive rt_closure_t {A} (R : A → A → Type) : A → A → Type :=
+  | rt_closure_t_step :
+    ∀ x y,
+    R x y →
+    rt_closure_t R x y
+  | refl_rt_closure_t :
+    ∀ x,
+    rt_closure_t R x x
+  | trans_rt_closure_t :
+    ∀ x y z,
+    rt_closure_t R x y →
+    rt_closure_t R y z →
+    rt_closure_t R x z.
+Arguments rt_closure_t_step {A R}.
+Arguments refl_rt_closure_t {A R}.
+Arguments trans_rt_closure_t {A R}.
+
+Fixpoint list_of_rt_closure_t {A} {R : A → A → Type} {x y} (H : rt_closure_t R x y) : list A :=
+  match H with
+  | rt_closure_t_step x y H => [x; y]
+  | refl_rt_closure_t x => [x]
+  | trans_rt_closure_t x y z H_1 H_2 => list_of_rt_closure_t H_1 ++ List.tl (list_of_rt_closure_t H_2)
   end.
 
 Inductive rts_closure_t {A} (R : A → A → Type) : A → A → Type :=
@@ -1120,8 +1144,8 @@ Arguments sym_rts_closure_t {A R}.
 
 Fixpoint list_of_rts_closure_t {A} {R : A → A → Type} {x y} (H : rts_closure_t R x y) : list A :=
   match H with
-  | rts_closure_t_step x y H => [y]
+  | rts_closure_t_step x y H => [x; y]
   | refl_rts_closure_t x => [x]
-  | trans_rts_closure_t x y z H_1 H_2 => list_of_rts_closure_t H_1 ++ list_of_rts_closure_t H_2
-  | sym_rts_closure_t x y H => list_of_rts_closure_t H
+  | trans_rts_closure_t x y z H_1 H_2 => list_of_rts_closure_t H_1 ++ List.tl (list_of_rts_closure_t H_2)
+  | sym_rts_closure_t x y H => List.rev (list_of_rts_closure_t H)
   end.

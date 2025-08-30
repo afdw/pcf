@@ -4,15 +4,15 @@ From PCF Require Import Types.
 
 Unset Elimination Schemes.
 
-Inductive termₘ μ : list type → type → Type :=
-  | kₘ : ∀ Γ, Zm μ → termₘ μ Γ ι
-  | Pₘ : ∀ Γ, termₘ μ Γ (ι ⇒ ι)
-  | Sₘ : ∀ Γ, termₘ μ Γ (ι ⇒ ι)
-  | switchₘ : ∀ Γ, (Zm μ →₀ termₘ μ Γ ι) → termₘ μ Γ (ι ⇒ ι)
-  | fixₘ : ∀ Γ α, termₘ μ Γ ((α ⇒ α) ⇒ α)
-  | Varₘ : ∀ Γ α, mem_index α Γ → termₘ μ Γ α
-  | Appₘ : ∀ Γ α β, termₘ μ Γ (α ⇒ β) → termₘ μ Γ α → termₘ μ Γ β
-  | Absₘ : ∀ Γ α β, termₘ μ (β :: Γ) α → termₘ μ Γ (β ⇒ α).
+Inductive termₘ μ Γ : type → Type :=
+  | kₘ : Zm μ → termₘ μ Γ ι
+  | Pₘ : termₘ μ Γ (ι ⇒ ι)
+  | Sₘ : termₘ μ Γ (ι ⇒ ι)
+  | switchₘ : (Zm μ →₀ termₘ μ Γ ι) → termₘ μ Γ (ι ⇒ ι)
+  | fixₘ : ∀ α, termₘ μ Γ ((α ⇒ α) ⇒ α)
+  | Varₘ : ∀ α, mem_index α Γ → termₘ μ Γ α
+  | Appₘ : ∀ α β, termₘ μ Γ (α ⇒ β) → termₘ μ Γ α → termₘ μ Γ β
+  | Absₘ : ∀ α β, termₘ μ (β :: Γ) α → termₘ μ Γ (β ⇒ α).
 Arguments kₘ {μ Γ}.
 Arguments Pₘ {μ Γ}.
 Arguments Sₘ {μ Γ}.
@@ -27,113 +27,123 @@ Set Elimination Schemes.
 Notation "s  '$ₘ'  t" := (Appₘ s t) (at level 40, left associativity).
 Notation "'λₘ:'  α ','  s" := (Absₘ α s) (at level 60, s at level 60, right associativity).
 
-Definition termₘ_rect (μ : nat) (P : ∀ Γ α, termₘ μ Γ α → Type)
+Definition termₘ_rect μ (P : ∀ Γ α, termₘ μ Γ α → Type)
   (case_kₘ : ∀ Γ n, P Γ ι (kₘ n))
   (case_Pₘ : ∀ Γ, P Γ (ι ⇒ ι) Pₘ)
   (case_Sₘ : ∀ Γ, P Γ (ι ⇒ ι) Sₘ)
-  (case_switchₘ : ∀ Γ (f : Zm μ →₀ termₘ μ Γ ι), (∀ n, P Γ ι (f n)) → match stabilizing_fun_default f with Some t' => P Γ ι t' | None => True end → P Γ (ι ⇒ ι) (switchₘ f))
+  (case_switchₘ : ∀ Γ (f : Zm μ →₀ termₘ μ Γ ι), (∀ n, P Γ ι (f n)) → match stabilizing_fun_default f with Some f_d => P Γ ι f_d | None => True end → P Γ (ι ⇒ ι) (switchₘ f))
   (case_fixₘ : ∀ Γ α, P Γ ((α ⇒ α) ⇒ α) (fixₘ α))
   (case_Varₘ : ∀ Γ α (mi : mem_index α Γ), P Γ α (Varₘ α mi))
-  (case_Appₘ : ∀ Γ α β (s' : termₘ μ Γ (α ⇒ β)), P Γ (α ⇒ β) s' → ∀ t' : termₘ μ Γ α, P Γ α t' → P Γ β (s' $ₘ t'))
-  (case_Absₘ : ∀ Γ α β (s' : termₘ μ (β :: Γ) α), P (β :: Γ) α s' → P Γ (β ⇒ α) (λₘ: β, s')) :=
+  (case_Appₘ : ∀ Γ α β (_1 : termₘ μ Γ (α ⇒ β)), P Γ (α ⇒ β) _1 → ∀ _2 : termₘ μ Γ α, P Γ α _2 → P Γ β (_1 $ₘ _2))
+  (case_Absₘ : ∀ Γ α β (_1 : termₘ μ (β :: Γ) α), P (β :: Γ) α _1 → P Γ (β ⇒ α) (λₘ: β, _1)) :=
   fix F Γ α (s : termₘ μ Γ α) : P Γ α s :=
     match s with
-    | @kₘ _ Γ n => case_kₘ Γ n
-    | @Pₘ _ Γ => case_Pₘ Γ
-    | @Sₘ _ Γ => case_Sₘ Γ
-    | @switchₘ _ Γ f => case_switchₘ Γ f (λ n, F Γ ι (f n)) (match stabilizing_fun_default f as t' return match t' with Some t' => P Γ ι t' | None => True end with Some t' => F Γ ι t' | None => I end)
-    | @fixₘ _ Γ α => case_fixₘ Γ α
-    | @Varₘ _ Γ α mi => case_Varₘ Γ α mi
-    | @Appₘ _ Γ α β s' t' => case_Appₘ Γ α β s' (F Γ (α ⇒ β) s') t' (F Γ α t')
-    | @Absₘ _ Γ α β s' => case_Absₘ Γ α β s' (F (β :: Γ) α s')
+    | @kₘ _ _ s_n => case_kₘ Γ s_n
+    | @Pₘ _ _ => case_Pₘ Γ
+    | @Sₘ _ _ => case_Sₘ Γ
+    | @switchₘ _ _ s_f => case_switchₘ Γ s_f (λ n, F Γ ι (s_f n)) (match stabilizing_fun_default s_f as f_default return match f_default with Some s_f_d => P Γ ι s_f_d | None => True end with Some s_f_d => F Γ ι s_f_d | None => I end)
+    | @fixₘ _ _ s_α => case_fixₘ Γ s_α
+    | @Varₘ _ _ s_α s_mi => case_Varₘ Γ s_α s_mi
+    | @Appₘ _ _ s_α s_β s_1 s_2 => case_Appₘ Γ s_α s_β s_1 (F Γ (s_α ⇒ s_β) s_1) s_2 (F Γ s_α s_2)
+    | @Absₘ _ _ s_α s_β s_1 => case_Absₘ Γ s_α s_β s_1 (F (s_β :: Γ) s_α s_1)
     end.
 
-Definition termₘ_ind (μ : nat) (P : ∀ Γ α, termₘ μ Γ α → Prop)
+Definition termₘ_ind μ (P : ∀ Γ α, termₘ μ Γ α → Prop)
   (case_kₘ : ∀ Γ n, P Γ ι (kₘ n))
   (case_Pₘ : ∀ Γ, P Γ (ι ⇒ ι) Pₘ)
   (case_Sₘ : ∀ Γ, P Γ (ι ⇒ ι) Sₘ)
-  (case_switchₘ : ∀ Γ (f : Zm μ →₀ termₘ μ Γ ι), (∀ n, P Γ ι (f n)) → match stabilizing_fun_default f with Some t' => P Γ ι t' | None => True end → P Γ (ι ⇒ ι) (switchₘ f))
+  (case_switchₘ : ∀ Γ (f : Zm μ →₀ termₘ μ Γ ι), (∀ n, P Γ ι (f n)) → match stabilizing_fun_default f with Some f_d => P Γ ι f_d | None => True end → P Γ (ι ⇒ ι) (switchₘ f))
   (case_fixₘ : ∀ Γ α, P Γ ((α ⇒ α) ⇒ α) (fixₘ α))
   (case_Varₘ : ∀ Γ α (mi : mem_index α Γ), P Γ α (Varₘ α mi))
-  (case_Appₘ : ∀ Γ α β (s' : termₘ μ Γ (α ⇒ β)), P Γ (α ⇒ β) s' → ∀ t' : termₘ μ Γ α, P Γ α t' → P Γ β (s' $ₘ t'))
-  (case_Absₘ : ∀ Γ α β (s' : termₘ μ (β :: Γ) α), P (β :: Γ) α s' → P Γ (β ⇒ α) (λₘ: β, s')) :=
+  (case_Appₘ : ∀ Γ α β (_1 : termₘ μ Γ (α ⇒ β)), P Γ (α ⇒ β) _1 → ∀ _2 : termₘ μ Γ α, P Γ α _2 → P Γ β (_1 $ₘ _2))
+  (case_Absₘ : ∀ Γ α β (_1 : termₘ μ (β :: Γ) α), P (β :: Γ) α _1 → P Γ (β ⇒ α) (λₘ: β, _1)) :=
   fix F Γ α (s : termₘ μ Γ α) : P Γ α s :=
     match s with
-    | @kₘ _ Γ n => case_kₘ Γ n
-    | @Pₘ _ Γ => case_Pₘ Γ
-    | @Sₘ _ Γ => case_Sₘ Γ
-    | @switchₘ _ Γ f => case_switchₘ Γ f (λ n, F Γ ι (f n)) (match stabilizing_fun_default f as t' return match t' with Some t' => P Γ ι t' | None => True end with Some t' => F Γ ι t' | None => I end)
-    | @fixₘ _ Γ α => case_fixₘ Γ α
-    | @Varₘ _ Γ α mi => case_Varₘ Γ α mi
-    | @Appₘ _ Γ α β s' t' => case_Appₘ Γ α β s' (F Γ (α ⇒ β) s') t' (F Γ α t')
-    | @Absₘ _ Γ α β s' => case_Absₘ Γ α β s' (F (β :: Γ) α s')
+    | @kₘ _ _ s_n => case_kₘ Γ s_n
+    | @Pₘ _ _ => case_Pₘ Γ
+    | @Sₘ _ _ => case_Sₘ Γ
+    | @switchₘ _ _ s_f => case_switchₘ Γ s_f (λ n, F Γ ι (s_f n)) (match stabilizing_fun_default s_f as f_default return match f_default with Some s_f_d => P Γ ι s_f_d | None => True end with Some s_f_d => F Γ ι s_f_d | None => I end)
+    | @fixₘ _ _ s_α => case_fixₘ Γ s_α
+    | @Varₘ _ _ s_α s_mi => case_Varₘ Γ s_α s_mi
+    | @Appₘ _ _ s_α s_β s_1 s_2 => case_Appₘ Γ s_α s_β s_1 (F Γ (s_α ⇒ s_β) s_1) s_2 (F Γ s_α s_2)
+    | @Absₘ _ _ s_α s_β s_1 => case_Absₘ Γ s_α s_β s_1 (F (s_β :: Γ) s_α s_1)
     end.
 
-Definition termₘ_rec (μ : nat) (P : ∀ Γ α, termₘ μ Γ α → Set) := termₘ_rect μ P.
+Definition termₘ_rec μ (P : ∀ Γ α, termₘ μ Γ α → Set) := termₘ_rect μ P.
 
-Equations Derive Signature for termₘ.
+(* Equations Derive Signature for termₘ. *)
+
+Definition termₘ_sig μ (index : sigma (λ _ : list type, type)) :=
+  termₘ μ (pr1 index) (pr2 index).
+
+Definition termₘ_sig_pack μ Γ α (s : termₘ μ Γ α) : sigma (termₘ_sig μ) :=
+  {| pr1 := {| pr1 := Γ; pr2 := α |}; pr2 := s |}.
+
+Instance termₘ_Signature μ Γ α : Signature (termₘ μ Γ α) (sigma (λ _ : list type, type)) (termₘ_sig μ) :=
+  termₘ_sig_pack μ Γ α.
+
 Equations Derive NoConfusion for termₘ.
 
 Instance arbitrary_termₘ {μ Γ α} : Arbitrary (termₘ μ Γ α).
 Proof.
-  revert Γ; induction α as [| α' IH_α' β' IH_β']; intros Γ.
+  revert Γ; induction α as [| α_1 IH_α_1 α_2 IH_α_2]; intros Γ.
   - apply (kₘ (Zm_of_Z 0%Z)).
-  - apply Absₘ. apply IH_β'.
+  - apply Absₘ. apply IH_α_2.
 Defined.
 
 Instance dec_eq_termₘ {μ Γ α} : EqDec (termₘ μ Γ α) eq.
 Proof.
   rewrite dec_eq_def.
-  intros s_1; induction s_1 as [Γ_1 n_1 | Γ_1 | Γ_1 | Γ_1 f_1 IH_f IH_f_default | Γ_1 α_1 | Γ_1 α_1 mi_1 | Γ_1 α_1 β_1 s'_1 IH_s' t'_1 IH_t' | Γ_1 α_1 β_1 s'_1 IH_s']; intros s_2.
-  - ltac1:(dependent elimination s_2 as [@kₘ Γ_2 n_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2]); try (right; congruence).
-    destruct (n_1 == n_2) as [H_n | H_n]; constructor; congruence.
-  - ltac1:(dependent elimination s_2 as [@Pₘ Γ_2 | @Sₘ Γ_2 | @switchₘ Γ_2 f_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2 | @Absₘ Γ_2 α_2 β_2 s'_2]); constructor; congruence.
-  - ltac1:(dependent elimination s_2 as [@Pₘ Γ_2 | @Sₘ Γ_2 | @switchₘ Γ_2 f_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2 | @Absₘ Γ_2 α_2 β_2 s'_2]); constructor; congruence.
-  - ltac1:(dependent elimination s_2 as [@Pₘ Γ_2 | @Sₘ Γ_2 | @switchₘ Γ_2 f_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2 | @Absₘ Γ_2 α_2 β_2 s'_2]); try (right; congruence).
-    ltac1:(pose proof (IH'_f := λ n, IH_f n (f_2 n))); clear IH_f.
-    assert (H_f_default : {stabilizing_fun_default f_1 = stabilizing_fun_default f_2} + {stabilizing_fun_default f_1 ≠ stabilizing_fun_default f_2}). {
-      remember (stabilizing_fun_default f_1) as f_default_1 eqn:H_f_default_1; remember (stabilizing_fun_default f_2) as f_default_2 eqn:H_f_default_2. destruct f_default_1 as [t'_1 |], f_default_2 as [t'_2 |]; try (right; congruence).
-      - specialize (IH_f_default t'_2). destruct IH_f_default; constructor; congruence.
+  intros s; induction s as [Γ s_n | Γ | Γ | Γ s_f IH_f IH_f_default | Γ s_α | Γ s_α s_mi | Γ s_α s_β s_1 IH_1 s_2 IH_2 | Γ s_α s_β s_1 IH_1]; intros t.
+  - ltac1:(dependent elimination t as [@kₘ _ _ t_n | @Varₘ _ _ t_α t_mi | @Appₘ _ _ t_α t_β t_1 t_2]); try (right; congruence).
+    destruct (s_n == t_n) as [H_n | H_n]; constructor; congruence.
+  - ltac1:(dependent elimination t as [@Pₘ _ _ | @Sₘ _ _ | @switchₘ _ _ t_f | @Varₘ _ _ t_α t_mi | @Appₘ _ _ t_α t_β t_1 t_2 | @Absₘ _ _ t_α t_β t_1]); constructor; congruence.
+  - ltac1:(dependent elimination t as [@Pₘ _ _ | @Sₘ _ _ | @switchₘ _ _ t_f | @Varₘ _ _ t_α t_mi | @Appₘ _ _ t_α t_β t_1 t_2 | @Absₘ _ _ t_α t_β t_1]); constructor; congruence.
+  - ltac1:(dependent elimination t as [@Pₘ _ _ | @Sₘ _ _ | @switchₘ _ _ t_f | @Varₘ _ _ t_α t_mi | @Appₘ _ _ t_α t_β t_1 t_2 | @Absₘ _ _ t_α t_β t_1]); try (right; congruence).
+    ltac1:(pose proof (IH'_f := λ n, IH_f n (t_f n))); clear IH_f.
+    assert (H_f_default : {stabilizing_fun_default s_f = stabilizing_fun_default t_f} + {stabilizing_fun_default s_f ≠ stabilizing_fun_default t_f}). {
+      remember (stabilizing_fun_default s_f) as s_f_default eqn:H_s_f_default; remember (stabilizing_fun_default t_f) as t_f_default eqn:H_t_f_default. destruct s_f_default as [s_f_d |], t_f_default as [t_f_d |]; try (right; congruence).
+      - specialize (IH_f_default t_f_d). destruct IH_f_default; constructor; congruence.
       - left; reflexivity.
     }
-    ltac1:(pose proof (H_f := dec_eq_stabilizing_fun_minimal f_1 f_2 IH'_f H_f_default)).
+    ltac1:(pose proof (H_f := dec_eq_stabilizing_fun_minimal s_f t_f IH'_f H_f_default)).
     destruct H_f as [H_f | H_f]; constructor; congruence.
-  - ltac1:(dependent elimination s_2 as [@fixₘ Γ_2 α_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2 | @Absₘ Γ_2 α_2 β_2 s'_2]); constructor; congruence.
-  - ltac1:(dependent elimination s_2 as [@kₘ Γ_2 n_2 | @Pₘ Γ_2 | @Sₘ Γ_2 | @switchₘ Γ_2 f_2 | @fixₘ Γ_2 α_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2 | @Absₘ Γ_2 α_2 β_2 s'_2]); try (right; congruence).
-    destruct (mi_1 == mi_2 : {_ = _} + {_ ≠ _}) as [-> | H_mi]; constructor; congruence.
-  - ltac1:(dependent elimination s_2 as [@kₘ Γ_2 n_2 | @Pₘ Γ_2 | @Sₘ Γ_2 | @switchₘ Γ_2 f_2 | @fixₘ Γ_2 α_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2 | @Absₘ Γ_2 α_2 β_2 s'_2]); try (right; congruence).
-    destruct (α_1 == α_2) as [-> | H_α]; try (right; congruence). specialize (IH_s' s'_2). specialize (IH_t' t'_2).
-    destruct IH_s' as [IH_s' | IH_s'] > [destruct IH_t' as [IH_t' | IH_t'] |].
+  - ltac1:(dependent elimination t as [@fixₘ _ _ t_α | @Varₘ _ _ t_α t_mi | @Appₘ _ _ t_α t_β t_1 t_2 | @Absₘ _ _ α_2 β_2 s'_2]); constructor; congruence.
+  - ltac1:(dependent elimination t as [@kₘ _ _ t_n | @Pₘ _ _ | @Sₘ _ _ | @switchₘ _ _ t_f | @fixₘ _ _ t_α | @Varₘ _ _ t_α t_mi | @Appₘ _ _ t_α t_β t_1 t_2 | @Absₘ _ _ t_α t_β t_1]); try (right; congruence).
+    destruct (s_mi == t_mi : {_ = _} + {_ ≠ _}) as [-> | H_mi]; constructor; congruence.
+  - ltac1:(dependent elimination t as [@kₘ _ _ t_n | @Pₘ _ _ | @Sₘ _ _ | @switchₘ _ _ t_f | @fixₘ _ _ t_α | @Varₘ _ _ t_α t_mi | @Appₘ _ _ t_α t_β t_1 t_2 | @Absₘ _ _ t_α t_β t_1]); try (right; congruence).
+    destruct (s_α == t_α) as [-> | H_α]; try (right; congruence). specialize (IH_1 t_1); specialize (IH_2 t_2).
+    destruct IH_1 as [IH_1 | IH_1] > [destruct IH_2 as [IH_2 | IH_2] |].
     + left; congruence.
-    + right. intros H. apply IH_t'. injection H as _ H. do 2 (apply inj_right_pair in H). auto.
-    + right. intros H. apply IH_s'. injection H as H _. do 3 (apply inj_right_pair in H). auto.
-  - ltac1:(dependent elimination s_2 as [@Pₘ Γ_2 | @Sₘ Γ_2 | @switchₘ Γ_2 f_2 | @fixₘ Γ_2 α_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2 β_2 s'_2 t'_2 | @Absₘ Γ_2 α_2 β_2 s'_2]); try (right; congruence).
-    specialize (IH_s' s'_2). destruct IH_s' as [IH_s' | IH_s']; constructor; congruence.
+    + right. intros H. apply IH_2. injection H as _ H. apply inj_right_pair in H. auto.
+    + right. intros H. apply IH_1. injection H as H _. do 2 (apply inj_right_pair in H). auto.
+  - ltac1:(dependent elimination t as [@Pₘ _ _ | @Sₘ _ _ | @switchₘ _ _ t_f | @fixₘ _ _ t_α | @Varₘ _ _ t_α t_mi | @Appₘ _ _ t_α t_β t_1 t_2 | @Absₘ _ _ t_α t_β t_1]); try (right; congruence).
+    specialize (IH_1 t_1). destruct IH_1 as [IH_1 | IH_1]; constructor; congruence.
 Defined.
 
-Inductive termₘ_direct_subterm {μ} : ∀ {Γ_1 α_1 Γ_2 α_2}, termₘ μ Γ_1 α_1 → termₘ μ Γ_2 α_2 → Prop :=
+Inductive termₘ_direct_subterm {μ} : ∀ {s_Γ s_α t_Γ t_α}, termₘ μ s_Γ s_α → termₘ μ t_Γ t_α → Prop :=
   | termₘ_direct_subterm_switchₘ_f :
-    ∀ {Γ} (f : Zm μ →₀ termₘ μ Γ ι) n,
-    termₘ_direct_subterm (f n) (switchₘ f)
-  | termₘ_direct_subterm_switchₘ_f_default :
-    ∀ {Γ} (f : Zm μ →₀ termₘ μ Γ ι) (t' : termₘ μ Γ ι),
-    stabilizing_fun_default f = Some t' →
-    termₘ_direct_subterm t' (switchₘ f)
-  | termₘ_direct_subterm_Appₘ_s' :
-    ∀ {Γ α β} (s' : termₘ μ Γ (α ⇒ β)) (t' : termₘ μ Γ α),
-    termₘ_direct_subterm s' (s' $ₘ t')
-  | termₘ_direct_subterm_Appₘ_t' :
-    ∀ {Γ α β} (s' : termₘ μ Γ (α ⇒ β)) (t' : termₘ μ Γ α),
-    termₘ_direct_subterm t' (s' $ₘ t')
-  | termₘ_direct_subterm_Absₘ_s' :
-    ∀ {Γ α} β (s' : termₘ μ (β :: Γ) α),
-    termₘ_direct_subterm s' (λₘ: β, s').
+    ∀ {t_Γ} (t_f : Zm μ →₀ termₘ μ t_Γ ι) n,
+    termₘ_direct_subterm (t_f n) (switchₘ t_f)
+  | termₘ_direct_subterm_switchₘ_f_d :
+    ∀ {t_Γ} (t_f : Zm μ →₀ termₘ μ t_Γ ι) (t_f_d : termₘ μ t_Γ ι),
+    stabilizing_fun_default t_f = Some t_f_d →
+    termₘ_direct_subterm t_f_d (switchₘ t_f)
+  | termₘ_direct_subterm_Appₘ_1 :
+    ∀ {t_Γ t_α t_β} (t_1 : termₘ μ t_Γ (t_α ⇒ t_β)) (t_2 : termₘ μ t_Γ t_α),
+    termₘ_direct_subterm t_1 (t_1 $ₘ t_2)
+  | termₘ_direct_subterm_Appₘ_2 :
+    ∀ {t_Γ t_α t_β} (t_1 : termₘ μ t_Γ (t_α ⇒ t_β)) (t_2 : termₘ μ t_Γ t_α),
+    termₘ_direct_subterm t_2 (t_1 $ₘ t_2)
+  | termₘ_direct_subterm_Absₘ_1 :
+    ∀ {t_Γ t_α} t_β (t_2 : termₘ μ (t_β :: t_Γ) t_α),
+    termₘ_direct_subterm t_2 (λₘ: t_β, t_2).
 
 Hint Resolve termₘ_direct_subterm_switchₘ_f : subterm_relation.
-Hint Resolve termₘ_direct_subterm_switchₘ_f_default : subterm_relation.
-Hint Resolve termₘ_direct_subterm_Appₘ_s' : subterm_relation.
-Hint Resolve termₘ_direct_subterm_Appₘ_t' : subterm_relation.
-Hint Resolve termₘ_direct_subterm_Absₘ_s' : subterm_relation.
+Hint Resolve termₘ_direct_subterm_switchₘ_f_d : subterm_relation.
+Hint Resolve termₘ_direct_subterm_Appₘ_1 : subterm_relation.
+Hint Resolve termₘ_direct_subterm_Appₘ_2 : subterm_relation.
+Hint Resolve termₘ_direct_subterm_Absₘ_1 : subterm_relation.
 
 Definition termₘ_subterm {μ} :=
   Relation_Operators.clos_trans
@@ -144,9 +154,12 @@ Hint Unfold termₘ_subterm : subterm_relation.
 
 Instance well_founded_termₘ_subterm {μ} : WellFounded (@termₘ_subterm μ).
 Proof.
-  apply Transitive_Closure.wf_clos_trans. intros [[Γ_1 α_1] s_1]; simpl in s_1.
-  induction s_1 as [Γ_1 n_1 | Γ_1 | Γ_1 | Γ_1 f_1 IH_f IH_f_default | Γ_1 α_1 | Γ_1 α_1 mi_1 | Γ_1 α_1 β_1 s'_1 IH_s' t'_1 IH_t' | Γ_1 α_1 β_1 s'_1 IH_s']; apply Acc_intro; simpl; intros [[Γ_2 α_2] s_2] H; simpl in s_2 |- *; try (solve [ltac1:(dependent elimination s_2 as [@kₘ Γ_2 n_2 | @Pₘ Γ_2 | @Sₘ Γ_2 | @switchₘ Γ_2 f_2 | @fixₘ Γ_2 α_2 | @Varₘ Γ_2 α_2 mi_2 | @Appₘ Γ_2 α_2_ β_2 s'_2 t'_2 | @Absₘ Γ_2 α_2 β_2 s'_2]); inversion H]); try (solve[ltac1:(dependent elimination H); auto]).
-  ltac1:(dependent elimination H as [@termₘ_direct_subterm_switchₘ_f Γ_1 f_1 n | @termₘ_direct_subterm_switchₘ_f_default Γ_1 f_1 t'_1 H_t'_1]); auto. destruct (stabilizing_fun_default f_1) as [x |]; congruence.
+  apply Transitive_Closure.wf_clos_trans. intros [[t_Γ t_α] t]; simpl in t.
+  induction t as [t_Γ t_n | t_Γ | t_Γ | t_Γ t_f IH_f IH_f_default | t_Γ t_α | t_Γ t_α t_mi | t_Γ t_α t_β t_1 IH_1 t_2 IH_2 | Γ t_α t_β t_1 IH_1]; apply Acc_intro; simpl; intros [[s_Γ s_α] s] H; simpl in s |- *;
+  try (solve [ltac1:(dependent elimination s as [@kₘ _ _ s_n | @Pₘ _ _ | @Sₘ _ _ | @switchₘ _ _ s_f | @fixₘ _ _ s_α | @Varₘ _ _ s_α s_mi | @Appₘ _ _ s_α_ s_β s_1 s_2 | @Absₘ _ _ s_α s_β s_1]); inversion H]); try (solve [ltac1:(dependent elimination H); auto]).
+  ltac1:(dependent elimination H as [@termₘ_direct_subterm_switchₘ_f t_Γ t_f n | @termₘ_direct_subterm_switchₘ_f_d _ t_Γ t_f t_f_d H_t_f_default]).
+  - auto.
+  - rewrite H_t_f_default in IH_f_default. auto.
 Defined.
 
 Check (λₘ: ι, λₘ: ι, Varₘ ι (MIS MIO)) $ₘ (Sₘ $ₘ Varₘ ι MIO) $ₘ kₘ (Zm_of_Z 0%Z).
@@ -172,26 +185,26 @@ Section rebuild_termₘ.
     | kₘ n => kₘ n
     | Pₘ => Pₘ
     | Sₘ => Sₘ
-    | switchₘ f =>
+    | switchₘ s_f =>
       switchₘ
         (stabilizing_fun_rebuild_erased
           (stabilizing_fun_map_minimal
-            (λ a, rebuild_termₘ (f a))
-            (match stabilizing_fun_default f as f_default return stabilizing_fun_default f = f_default → option (termₘ μ Γ ι) with
-            | Some t' => λ H_t', Some (rebuild_termₘ t')
+            (λ n, rebuild_termₘ (s_f n))
+            (match stabilizing_fun_default s_f as s_f_default return stabilizing_fun_default s_f = s_f_default → option (termₘ μ Γ ι) with
+            | Some s_f_d => λ s_f_default, Some (rebuild_termₘ s_f_d)
             | None => λ _, None
             end eq_refl)
-            f
+            s_f
             _)
         )
-    | fixₘ α => fixₘ α
-    | Varₘ α mi => Varₘ α mi
-    | s' $ₘ t' => (rebuild_termₘ s') $ₘ (rebuild_termₘ t')
-    | λₘ: β, s' => λₘ: β, rebuild_termₘ s'.
+    | fixₘ s_α => fixₘ s_α
+    | Varₘ s_α s_mi => Varₘ s_α s_mi
+    | s_1 $ₘ s_2 => (rebuild_termₘ s_1) $ₘ (rebuild_termₘ s_2)
+    | λₘ: s_β, s_1 => λₘ: s_β, rebuild_termₘ s_1.
   Next Obligation.
-    intros Γ f renaming_inst_termₘ a_1 a_2 H_f_a. simpl.
-    generalize (rebuild_termₘ_obligations_obligation_1 Γ f a_1) as H_1, (rebuild_termₘ_obligations_obligation_1 Γ f a_2) as H_2; intros H_1 H_2.
-    destruct H_f_a. f_equal; apply proof_irrelevance.
+    intros Γ f rebuild_termₘ n_1 n_2 H_f_n. simpl.
+    generalize (rebuild_termₘ_obligations_obligation_1 Γ f n_1) as H_1, (rebuild_termₘ_obligations_obligation_1 Γ f n_2) as H_2; intros H_1 H_2.
+    destruct H_f_n. f_equal; apply proof_irrelevance.
   Defined.
 End rebuild_termₘ.
 
@@ -217,33 +230,33 @@ Section renaming_inst_termₘ.
     | σ, kₘ n => kₘ n
     | σ, Pₘ => Pₘ
     | σ, Sₘ => Sₘ
-    | σ, switchₘ f =>
+    | σ, switchₘ s_f =>
       switchₘ
         (stabilizing_fun_map_minimal
-          (λ a, renaming_inst_termₘ σ (f a))
-          (match stabilizing_fun_default f as f_default return stabilizing_fun_default f = f_default → option (termₘ μ Γ ι) with
-          | Some t' => λ H_t', Some (renaming_inst_termₘ σ t')
+          (λ n, renaming_inst_termₘ σ (s_f n))
+          (match stabilizing_fun_default s_f as s_f_default return stabilizing_fun_default s_f = s_f_default → option (termₘ μ Γ ι) with
+          | Some s_f_d => λ s_f_default, Some (renaming_inst_termₘ σ s_f_d)
           | None => λ _, None
           end eq_refl)
-          f
+          s_f
           _)
-    | σ, fixₘ α => fixₘ α
-    | σ, Varₘ α mi => Varₘ α (σ α mi)
-    | σ, s' $ₘ t' => (renaming_inst_termₘ σ s') $ₘ (renaming_inst_termₘ σ t')
-    | σ, λₘ: β, s' => λₘ: β, renaming_inst_termₘ (renaming_up β σ) s'.
+    | σ, fixₘ s_α => fixₘ s_α
+    | σ, Varₘ s_α s_mi => Varₘ s_α (σ s_α s_mi)
+    | σ, s_1 $ₘ s_2 => (renaming_inst_termₘ σ s_1) $ₘ (renaming_inst_termₘ σ s_2)
+    | σ, λₘ: s_β, s_1 => λₘ: s_β, renaming_inst_termₘ (renaming_up s_β σ) s_1.
   Next Obligation.
-    intros Γ Δ σ f renaming_inst_termₘ a_1 a_2 H_f_a. simpl.
-    generalize (renaming_inst_termₘ_obligations_obligation_1 Δ f a_1) as H_1, (renaming_inst_termₘ_obligations_obligation_1 Δ f a_2) as H_2; intros H_1 H_2.
-    destruct H_f_a. f_equal; apply proof_irrelevance.
+    intros Γ Δ σ f renaming_inst_termₘ n_1 n_2 H_f_n. simpl.
+    generalize (renaming_inst_termₘ_obligations_obligation_1 Δ f n_1) as H_1, (renaming_inst_termₘ_obligations_obligation_1 Δ f n_2) as H_2; intros H_1 H_2.
+    destruct H_f_n. f_equal; apply proof_irrelevance.
   Defined.
 End renaming_inst_termₘ.
 
 Lemma renaming_inst_termₘ_equation_4' {μ : nat} :
-  ∀ Γ Δ (σ : renaming Γ Δ) (f : Zm μ →₀ termₘ μ Δ ι),
-  renaming_inst_termₘ σ (switchₘ f) = switchₘ (stabilizing_fun_map (renaming_inst_termₘ σ) f).
+  ∀ Γ Δ (σ : renaming Γ Δ) (s_f : Zm μ →₀ termₘ μ Δ ι),
+  renaming_inst_termₘ σ (switchₘ s_f) = switchₘ (stabilizing_fun_map (renaming_inst_termₘ σ) s_f).
 Proof.
-  intros Γ Δ σ f. rewrite renaming_inst_termₘ_equation_4. unfold stabilizing_fun_map. do 2 f_equal.
-  - destruct (stabilizing_fun_default f); reflexivity.
+  intros Γ Δ σ s_f. rewrite renaming_inst_termₘ_equation_4. unfold stabilizing_fun_map. do 2 f_equal.
+  - destruct (stabilizing_fun_default s_f); reflexivity.
   - apply functional_extensionality_dep; intros; apply functional_extensionality_dep; intros; apply functional_extensionality_dep; intros; apply proof_irrelevance.
 Qed.
 
@@ -269,20 +282,20 @@ Section substitutionₘ_inst.
     | σ, kₘ n => kₘ n
     | σ, Pₘ => Pₘ
     | σ, Sₘ => Sₘ
-    | σ, switchₘ f =>
+    | σ, switchₘ s_f =>
       switchₘ
         (stabilizing_fun_map_minimal
-          (λ a, substitutionₘ_inst σ (f a))
-          (match stabilizing_fun_default f as f_default return stabilizing_fun_default f = f_default → option (termₘ μ Γ ι) with
-          | Some t' => λ H_t', Some (substitutionₘ_inst σ t')
+          (λ n, substitutionₘ_inst σ (s_f n))
+          (match stabilizing_fun_default s_f as s_f_default return stabilizing_fun_default s_f = s_f_default → option (termₘ μ Γ ι) with
+          | Some s_f_d => λ s_f_default, Some (substitutionₘ_inst σ s_f_d)
           | None => λ _, None
           end eq_refl)
-          f
+          s_f
           _)
-    | σ, fixₘ α => fixₘ α
-    | σ, Varₘ α mi => σ α mi
-    | σ, s' $ₘ t' => (substitutionₘ_inst σ s') $ₘ (substitutionₘ_inst σ t')
-    | σ, λₘ: β, s' => λₘ: β, substitutionₘ_inst (substitutionₘ_up β σ) s'.
+    | σ, fixₘ s_α => fixₘ s_α
+    | σ, Varₘ s_α s_mi => σ s_α s_mi
+    | σ, s_1 $ₘ s_2 => (substitutionₘ_inst σ s_1) $ₘ (substitutionₘ_inst σ s_2)
+    | σ, λₘ: s_β, s_1 => λₘ: s_β, substitutionₘ_inst (substitutionₘ_up s_β σ) s_1.
   Next Obligation.
     intros Γ Δ σ f substitutionₘ_inst a_1 a_2 H_f_a. simpl.
     generalize (substitutionₘ_inst_obligations_obligation_1 Δ f a_1) as H_1, (substitutionₘ_inst_obligations_obligation_1 Δ f a_2) as H_2; intros H_1 H_2.
@@ -291,11 +304,11 @@ Section substitutionₘ_inst.
 End substitutionₘ_inst.
 
 Lemma substitutionₘ_inst_equation_4' {μ : nat} :
-  ∀ Γ Δ (σ : substitutionₘ μ Γ Δ) (f : Zm μ →₀ termₘ μ Δ ι),
-  substitutionₘ_inst σ (switchₘ f) = switchₘ  (stabilizing_fun_map (substitutionₘ_inst σ) f).
+  ∀ Γ Δ (σ : substitutionₘ μ Γ Δ) (s_f : Zm μ →₀ termₘ μ Δ ι),
+  substitutionₘ_inst σ (switchₘ s_f) = switchₘ  (stabilizing_fun_map (substitutionₘ_inst σ) s_f).
 Proof.
-  intros Γ Δ σ f. rewrite substitutionₘ_inst_equation_4. unfold stabilizing_fun_map. do 2 f_equal.
-  - destruct (stabilizing_fun_default f); reflexivity.
+  intros Γ Δ σ s_f. rewrite substitutionₘ_inst_equation_4. unfold stabilizing_fun_map. do 2 f_equal.
+  - destruct (stabilizing_fun_default s_f); reflexivity.
   - apply functional_extensionality_dep; intros; apply functional_extensionality_dep; intros; apply functional_extensionality_dep; intros; apply proof_irrelevance.
 Qed.
 
@@ -351,14 +364,14 @@ Lemma renaming_inst_termₘ_def {μ Γ Δ α} :
   ∀ (σ : renaming Γ Δ) (s : termₘ μ Δ α),
   renaming_inst_termₘ σ s = substitutionₘ_inst (substitutionₘ_of_renaming σ) s.
 Proof.
-  intros σ s. revert Γ σ; induction s as [Δ n | Δ | Δ | Δ f IH_f IH_f_default | Δ α | Δ α mi | Δ α β s' IH_s' t' IH_t' | Δ α β s' IH_s']; intros Γ σ; ltac1:(simp renaming_inst_termₘ' substitutionₘ_inst'); try (congruence).
+  intros σ s. revert Γ σ; induction s as [Δ n | Δ | Δ | Δ s_f IH_s_f IH_s_f_default | Δ s_α | Δ s_α s_mi | Δ s_α s_β s_1 IH_s_1 s_2 IH_s_2 | Δ α β s_1 IH_s_1]; intros Γ σ; ltac1:(simp renaming_inst_termₘ' substitutionₘ_inst'); try (congruence).
   - f_equal. apply eq_stabilizing_fun_map.
-    + intros n. rewrite IH_f. reflexivity.
-    + destruct (stabilizing_fun_default f) as [t' |].
-      * simpl. rewrite IH_f_default. reflexivity.
+    + intros n. rewrite IH_s_f. reflexivity.
+    + destruct (stabilizing_fun_default s_f) as [s_f_d |].
+      * simpl. rewrite IH_s_f_default. reflexivity.
       * reflexivity.
   - reflexivity.
-  - rewrite IH_s'. rewrite renaming_up_def_termₘ. reflexivity.
+  - rewrite IH_s_1. rewrite renaming_up_def_termₘ. reflexivity.
 Qed.
 
 Lemma substitutionₘ_comp_renaming_def {μ Γ Δ Θ} :
@@ -384,10 +397,10 @@ Proof.
 Qed.
 
 Lemma substitutionₘ_inst_kₘ {μ Γ Δ} :
-  ∀ (σ : substitutionₘ μ Γ Δ) n,
-  substitutionₘ_inst σ (kₘ n) = kₘ n.
+  ∀ (σ : substitutionₘ μ Γ Δ) s_n,
+  substitutionₘ_inst σ (kₘ s_n) = kₘ s_n.
 Proof.
-  intros σ n. ltac1:(simp substitutionₘ_inst'). reflexivity.
+  intros σ s_n. ltac1:(simp substitutionₘ_inst'). reflexivity.
 Qed.
 
 Lemma substitutionₘ_inst_Pₘ {μ Γ Δ} :
@@ -405,38 +418,38 @@ Proof.
 Qed.
 
 Lemma substitutionₘ_inst_switchₘ {μ Γ Δ} :
-  ∀ (σ : substitutionₘ μ Γ Δ) (f : Zm μ →₀ termₘ μ Δ ι),
-  substitutionₘ_inst σ (switchₘ f) = switchₘ (stabilizing_fun_map (substitutionₘ_inst σ) f).
+  ∀ (σ : substitutionₘ μ Γ Δ) (s_f : Zm μ →₀ termₘ μ Δ ι),
+  substitutionₘ_inst σ (switchₘ s_f) = switchₘ (stabilizing_fun_map (substitutionₘ_inst σ) s_f).
 Proof.
-  intros σ f. ltac1:(simp substitutionₘ_inst'). reflexivity.
+  intros σ s_f. ltac1:(simp substitutionₘ_inst'). reflexivity.
 Qed.
 
 Lemma substitutionₘ_inst_fixₘ {μ Γ Δ} :
-  ∀ (σ : substitutionₘ μ Γ Δ) α,
-  substitutionₘ_inst σ (fixₘ α) = fixₘ α.
+  ∀ (σ : substitutionₘ μ Γ Δ) s_α,
+  substitutionₘ_inst σ (fixₘ s_α) = fixₘ s_α.
 Proof.
-  intros σ α. ltac1:(simp substitutionₘ_inst'). reflexivity.
+  intros σ s_α. ltac1:(simp substitutionₘ_inst'). reflexivity.
 Qed.
 
 Lemma substitutionₘ_inst_Varₘ {μ Γ Δ} :
-  ∀ (σ : substitutionₘ μ Γ Δ) α mi,
-  substitutionₘ_inst σ (Varₘ α mi) = σ α mi.
+  ∀ (σ : substitutionₘ μ Γ Δ) s_α s_mi,
+  substitutionₘ_inst σ (Varₘ s_α s_mi) = σ s_α s_mi.
 Proof.
-  intros σ α mi. ltac1:(simp substitutionₘ_inst'). reflexivity.
+  intros σ s_α s_mi. ltac1:(simp substitutionₘ_inst'). reflexivity.
 Qed.
 
-Lemma substitutionₘ_inst_appₘ {μ Γ Δ α β} :
-  ∀ (σ : substitutionₘ μ Γ Δ) (s' : termₘ μ Δ (α ⇒ β)) (t' : termₘ μ Δ α),
-  substitutionₘ_inst σ (s' $ₘ t') = (substitutionₘ_inst σ s') $ₘ (substitutionₘ_inst σ t').
+Lemma substitutionₘ_inst_Appₘ {μ Γ Δ s_α s_β} :
+  ∀ (σ : substitutionₘ μ Γ Δ) (s_1 : termₘ μ Δ (s_α ⇒ s_β)) (s_2 : termₘ μ Δ s_α),
+  substitutionₘ_inst σ (s_1 $ₘ s_2) = (substitutionₘ_inst σ s_1) $ₘ (substitutionₘ_inst σ s_2).
 Proof.
-  intros σ s' t'. ltac1:(simp substitutionₘ_inst'). reflexivity.
+  intros σ s_1 s_2. ltac1:(simp substitutionₘ_inst'). reflexivity.
 Qed.
 
-Lemma substitutionₘ_inst_absₘ {μ Γ Δ α} :
-  ∀ (σ : substitutionₘ μ Γ Δ) β (s' : termₘ μ (β :: Δ) α),
-  substitutionₘ_inst σ (λₘ: β, s') = λₘ: β, substitutionₘ_inst (substitutionₘ_up β σ) s'.
+Lemma substitutionₘ_inst_Absₘ {μ Γ Δ s_α} :
+  ∀ (σ : substitutionₘ μ Γ Δ) s_β (s_1 : termₘ μ (s_β :: Δ) s_α),
+  substitutionₘ_inst σ (λₘ: s_β, s_1) = λₘ: s_β, substitutionₘ_inst (substitutionₘ_up s_β σ) s_1.
 Proof.
-  intros σ β s'. ltac1:(simp substitutionₘ_inst'). reflexivity.
+  intros σ s_β s_1. ltac1:(simp substitutionₘ_inst'). reflexivity.
 Qed.
 
 Lemma substitutionₘ_inst_substitutionₘ_cons_Varₘ_MIO {μ Γ Δ} :
@@ -492,42 +505,42 @@ Lemma substitutionₘ_comp_substitutionₘ_id_right {μ Γ Δ} :
 Proof.
   intros σ. apply functional_extensionality_dep; intros α; apply functional_extensionality; intros mi.
   unfold substitutionₘ_comp. generalize (σ α mi) as s; intros s; clear σ mi.
-  induction s as [Γ n | Γ | Γ | Γ f IH_f IH_f_default | Γ α | Γ α mi | Γ α β s' IH_s' t' IH_t' | Γ α β s' IH_s'].
+  induction s as [Γ s_n | Γ | Γ | Γ s_f IH_s_f IH_s_f_default | Γ s_α | Γ s_α s_mi | Γ s_α s_β s_1 IH_s_1 s_2 IH_s_2 | Γ s_α s_β s_1 IH_s_1].
   - rewrite substitutionₘ_inst_kₘ. reflexivity.
   - rewrite substitutionₘ_inst_Pₘ. reflexivity.
   - rewrite substitutionₘ_inst_Sₘ. reflexivity.
   - rewrite substitutionₘ_inst_switchₘ. f_equal. apply stabilizing_fun_map_id.
-    + intros n. rewrite IH_f. reflexivity.
-    + destruct (stabilizing_fun_default f) as [t' |].
-      * simpl. rewrite IH_f_default. reflexivity.
+    + intros n. rewrite IH_s_f. reflexivity.
+    + destruct (stabilizing_fun_default s_f) as [s_f_d |].
+      * simpl. rewrite IH_s_f_default. reflexivity.
       * reflexivity.
   - rewrite substitutionₘ_inst_fixₘ. reflexivity.
   - rewrite substitutionₘ_inst_Varₘ. unfold substitutionₘ_id, substitutionₘ_of_renaming, renaming_id. reflexivity.
-  - rewrite substitutionₘ_inst_appₘ. rewrite IH_s', IH_t'. reflexivity.
-  - rewrite substitutionₘ_inst_absₘ. rewrite substitutionₘ_up_def, substitutionₘ_comp_substitutionₘ_id_left, substitutionₘ_cons_Varₘ_MIO_substitutionₘ_shift. rewrite IH_s'. reflexivity.
+  - rewrite substitutionₘ_inst_Appₘ. rewrite IH_s_1, IH_s_2. reflexivity.
+  - rewrite substitutionₘ_inst_Absₘ. rewrite substitutionₘ_up_def, substitutionₘ_comp_substitutionₘ_id_left, substitutionₘ_cons_Varₘ_MIO_substitutionₘ_shift. rewrite IH_s_1. reflexivity.
 Qed.
 
 Lemma substitutionₘ_inst_substitutionₘ_inst_substitutionₘ_of_renaming {μ Γ Δ Θ α} :
   ∀ (τ : renaming Δ Θ) (σ : substitutionₘ μ Γ Δ) (s : termₘ μ Θ α),
   substitutionₘ_inst σ (substitutionₘ_inst (substitutionₘ_of_renaming τ) s) = substitutionₘ_inst (substitutionₘ_comp (substitutionₘ_of_renaming τ) σ) s.
 Proof.
-  intros τ σ s. revert Γ Δ τ σ; induction s as [Θ n | Θ | Θ | Θ f IH_f IH_f_default | Θ α | Θ α mi | Θ α β s' IH_s' t' IH_t' | Θ α β s' IH_s']; intros Γ Δ τ σ.
+  intros τ σ s. revert Γ Δ τ σ; induction s as [Θ s_n | Θ | Θ | Θ s_f IH_s_f IH_s_f_default | Θ s_α | Θ s_α s_mi | Θ s_α s_β s_1 IH_s_1 s_2 IH_s_2 | Θ s_α s_β s_1 IH_s_1]; intros Γ Δ τ σ.
   - rewrite ! substitutionₘ_inst_kₘ. reflexivity.
   - rewrite ! substitutionₘ_inst_Pₘ. reflexivity.
   - rewrite ! substitutionₘ_inst_Sₘ. reflexivity.
   - rewrite ! substitutionₘ_inst_switchₘ. f_equal. rewrite stabilizing_fun_map_stabilizing_fun_map. apply eq_stabilizing_fun_map.
-    + intros n. rewrite IH_f. reflexivity.
-    + destruct (stabilizing_fun_default f) as [t' |].
-      * simpl. rewrite IH_f_default. reflexivity.
+    + intros n. rewrite IH_s_f. reflexivity.
+    + destruct (stabilizing_fun_default s_f) as [s_f_d |].
+      * simpl. rewrite IH_s_f_default. reflexivity.
       * reflexivity.
   - rewrite ! substitutionₘ_inst_fixₘ. reflexivity.
   - rewrite ! substitutionₘ_inst_Varₘ. unfold substitutionₘ_comp. reflexivity.
-  - rewrite ! substitutionₘ_inst_appₘ. rewrite IH_s', IH_t'. reflexivity.
-  - rewrite ! substitutionₘ_inst_absₘ. rewrite (substitutionₘ_up_substitutionₘ_of_renaming β τ). rewrite IH_s'. do 2 f_equal.
-    rewrite (substitutionₘ_up_def β (substitutionₘ_comp (substitutionₘ_of_renaming τ) σ)), renaming_cons_def_termₘ, substitutionₘ_comp_substitutionₘ_cons. f_equal.
+  - rewrite ! substitutionₘ_inst_Appₘ. rewrite IH_s_1, IH_s_2. reflexivity.
+  - rewrite ! substitutionₘ_inst_Absₘ. rewrite (substitutionₘ_up_substitutionₘ_of_renaming s_β τ). rewrite IH_s_1. do 2 f_equal.
+    rewrite (substitutionₘ_up_def s_β (substitutionₘ_comp (substitutionₘ_of_renaming τ) σ)), renaming_cons_def_termₘ, substitutionₘ_comp_substitutionₘ_cons. f_equal.
     apply functional_extensionality_dep; intros γ; apply functional_extensionality; intros mi.
     rewrite substitutionₘ_up_def. unfold substitutionₘ_comp at 1 3 4, renaming_comp, substitutionₘ_of_renaming. rewrite ! substitutionₘ_inst_Varₘ.
-    specialize (substitutionₘ_comp_substitutionₘ_shift_substitutionₘ_cons β (Varₘ β MIO) (substitutionₘ_comp σ (substitutionₘ_shift β Γ))) as H. specialize (equal_f (equal_f_dep H γ) (τ γ mi)) as H'.
+    specialize (substitutionₘ_comp_substitutionₘ_shift_substitutionₘ_cons s_β (Varₘ s_β MIO) (substitutionₘ_comp σ (substitutionₘ_shift s_β Γ))) as H. specialize (equal_f (equal_f_dep H γ) (τ γ mi)) as H'.
     unfold substitutionₘ_comp at 1 3, substitutionₘ_shift, substitutionₘ_of_renaming at 2 in H'. rewrite substitutionₘ_inst_Varₘ in H'.
     unfold substitutionₘ_shift. rewrite H'. reflexivity.
 Qed.
@@ -536,23 +549,23 @@ Lemma substitutionₘ_inst_substitutionₘ_of_renaming_substitutionₘ_inst {μ 
   ∀ (τ : substitutionₘ μ Δ Θ) (σ : renaming Γ Δ) (s : termₘ μ Θ α),
   substitutionₘ_inst (substitutionₘ_of_renaming σ) (substitutionₘ_inst τ s) = substitutionₘ_inst (substitutionₘ_comp τ (substitutionₘ_of_renaming σ)) s.
 Proof.
-  intros τ σ s. revert Γ Δ τ σ; induction s as [Θ n | Θ | Θ | Θ f IH_f IH_f_default | Θ α | Θ α mi | Θ α β s' IH_s' t' IH_t' | Θ α β s' IH_s']; intros Γ Δ τ σ.
+  intros τ σ s. revert Γ Δ τ σ; induction s as [Θ s_n | Θ | Θ | Θ s_f IH_s_f IH_s_f_default | Θ s_α | Θ s_α s_mi | Θ s_α s_β s_1 IH_s_1 s_2 IH_s_2 | Θ s_α s_β s_1 IH_s_1]; intros Γ Δ τ σ.
   - rewrite ! substitutionₘ_inst_kₘ. reflexivity.
   - rewrite ! substitutionₘ_inst_Pₘ. reflexivity.
   - rewrite ! substitutionₘ_inst_Sₘ. reflexivity.
   - rewrite ! substitutionₘ_inst_switchₘ. f_equal. rewrite stabilizing_fun_map_stabilizing_fun_map. apply eq_stabilizing_fun_map.
-    + intros n. rewrite IH_f. reflexivity.
-    + destruct (stabilizing_fun_default f) as [t' |].
-      * simpl. rewrite IH_f_default. reflexivity.
+    + intros n. rewrite IH_s_f. reflexivity.
+    + destruct (stabilizing_fun_default s_f) as [s_f_d |].
+      * simpl. rewrite IH_s_f_default. reflexivity.
       * reflexivity.
   - rewrite ! substitutionₘ_inst_fixₘ. reflexivity.
   - rewrite ! substitutionₘ_inst_Varₘ. unfold substitutionₘ_comp. reflexivity.
-  - rewrite ! substitutionₘ_inst_appₘ. rewrite IH_s', IH_t'. reflexivity.
-  - rewrite ! substitutionₘ_inst_absₘ. rewrite (substitutionₘ_up_substitutionₘ_of_renaming β σ). rewrite IH_s'. do 2 f_equal.
+  - rewrite ! substitutionₘ_inst_Appₘ. rewrite IH_s_1, IH_s_2. reflexivity.
+  - rewrite ! substitutionₘ_inst_Absₘ. rewrite (substitutionₘ_up_substitutionₘ_of_renaming s_β σ). rewrite IH_s_1. do 2 f_equal.
     rewrite ! substitutionₘ_up_def, renaming_cons_def_termₘ, substitutionₘ_comp_substitutionₘ_cons. f_equal.
     apply functional_extensionality_dep; intros γ; apply functional_extensionality; intros mi.
     unfold substitutionₘ_comp, substitutionₘ_shift. rewrite ! substitutionₘ_inst_substitutionₘ_inst_substitutionₘ_of_renaming.
-    specialize (@substitutionₘ_comp_substitutionₘ_shift_substitutionₘ_cons μ _ _ β (Varₘ β MIO) (substitutionₘ_of_renaming (renaming_comp σ (renaming_shift β Γ)))) as H. unfold substitutionₘ_shift in H. rewrite H.
+    specialize (@substitutionₘ_comp_substitutionₘ_shift_substitutionₘ_cons μ _ _ s_β (Varₘ s_β MIO) (substitutionₘ_of_renaming (renaming_comp σ (renaming_shift s_β Γ)))) as H. unfold substitutionₘ_shift in H. rewrite H.
     rewrite renaming_comp_def_termₘ, substitutionₘ_comp_renaming_def. reflexivity.
 Qed.
 
@@ -560,24 +573,24 @@ Lemma substitutionₘ_inst_substitutionₘ_inst {μ Γ Δ Θ α} :
   ∀ (τ : substitutionₘ μ Δ Θ) (σ : substitutionₘ μ Γ Δ) (s : termₘ μ Θ α),
   substitutionₘ_inst σ (substitutionₘ_inst τ s) = substitutionₘ_inst (substitutionₘ_comp τ σ) s.
 Proof.
-  intros τ σ s. revert Γ Δ τ σ; induction s as [Θ n | Θ | Θ | Θ f IH_f IH_f_default | Θ α | Θ α mi | Θ α β s' IH_s' t' IH_t' | Θ α β s' IH_s']; intros Γ Δ τ σ.
+  intros τ σ s. revert Γ Δ τ σ; induction s as [Θ s_n | Θ | Θ | Θ s_f IH_s_f IH_s_f_default | Θ s_α | Θ s_α s_mi | Θ s_α s_β s_1 IH_s_1 s_2 IH_s_2 | Θ s_α s_β s_1 IH_s_1]; intros Γ Δ τ σ.
   - rewrite ! substitutionₘ_inst_kₘ. reflexivity.
   - rewrite ! substitutionₘ_inst_Pₘ. reflexivity.
   - rewrite ! substitutionₘ_inst_Sₘ. reflexivity.
   - rewrite ! substitutionₘ_inst_switchₘ. f_equal. rewrite stabilizing_fun_map_stabilizing_fun_map. apply eq_stabilizing_fun_map.
-    + intros n. rewrite IH_f. reflexivity.
-    + destruct (stabilizing_fun_default f) as [t' |].
-      * simpl. rewrite IH_f_default. reflexivity.
+    + intros n. rewrite IH_s_f. reflexivity.
+    + destruct (stabilizing_fun_default s_f) as [s_f_d |].
+      * simpl. rewrite IH_s_f_default. reflexivity.
       * reflexivity.
   - rewrite ! substitutionₘ_inst_fixₘ. reflexivity.
   - rewrite ! substitutionₘ_inst_Varₘ. unfold substitutionₘ_comp. reflexivity.
-  - rewrite ! substitutionₘ_inst_appₘ. rewrite IH_s', IH_t'. reflexivity.
-  - rewrite ! substitutionₘ_inst_absₘ. rewrite IH_s'. do 2 f_equal.
-    rewrite (substitutionₘ_up_def β τ), (substitutionₘ_up_def β (substitutionₘ_comp τ σ)), substitutionₘ_comp_substitutionₘ_cons. f_equal.
+  - rewrite ! substitutionₘ_inst_Appₘ. rewrite IH_s_1, IH_s_2. reflexivity.
+  - rewrite ! substitutionₘ_inst_Absₘ. rewrite IH_s_1. do 2 f_equal.
+    rewrite (substitutionₘ_up_def s_β τ), (substitutionₘ_up_def s_β (substitutionₘ_comp τ σ)), substitutionₘ_comp_substitutionₘ_cons. f_equal.
     apply functional_extensionality_dep; intros γ; apply functional_extensionality; intros mi.
     unfold substitutionₘ_comp, substitutionₘ_shift.
     rewrite substitutionₘ_inst_substitutionₘ_inst_substitutionₘ_of_renaming, substitutionₘ_inst_substitutionₘ_of_renaming_substitutionₘ_inst, substitutionₘ_up_def.
-    specialize (@substitutionₘ_comp_substitutionₘ_shift_substitutionₘ_cons μ _ _ β (Varₘ β MIO) (substitutionₘ_comp σ (substitutionₘ_shift β Γ))) as H. unfold substitutionₘ_shift in H |- *. rewrite H. reflexivity.
+    specialize (@substitutionₘ_comp_substitutionₘ_shift_substitutionₘ_cons μ _ _ s_β (Varₘ s_β MIO) (substitutionₘ_comp σ (substitutionₘ_shift s_β Γ))) as H. unfold substitutionₘ_shift in H |- *. rewrite H. reflexivity.
 Qed.
 
 Lemma associativity_rev_substitutionₘ_comp {μ Γ Δ Θ Λ} :
@@ -602,8 +615,8 @@ Hint Rewrite @substitutionₘ_inst_Pₘ : substitutionₘ.
 Hint Rewrite @substitutionₘ_inst_Sₘ : substitutionₘ.
 Hint Rewrite @substitutionₘ_inst_switchₘ : substitutionₘ.
 Hint Rewrite @substitutionₘ_inst_fixₘ : substitutionₘ.
-Hint Rewrite @substitutionₘ_inst_appₘ : substitutionₘ.
-Hint Rewrite @substitutionₘ_inst_absₘ : substitutionₘ.
+Hint Rewrite @substitutionₘ_inst_Appₘ : substitutionₘ.
+Hint Rewrite @substitutionₘ_inst_Absₘ : substitutionₘ.
 Hint Rewrite @substitutionₘ_inst_substitutionₘ_cons_Varₘ_MIO : substitutionₘ.
 Hint Rewrite @substitutionₘ_comp_substitutionₘ_shift_substitutionₘ_cons : substitutionₘ.
 Hint Rewrite @substitutionₘ_comp_substitutionₘ_cons : substitutionₘ.
@@ -616,54 +629,53 @@ Hint Rewrite @associativity_rev_substitutionₘ_comp : substitutionₘ.
 
 Reserved Notation "s_1  ⟶ₘ  s_2" (at level 70).
 
-Inductive termₘ_step {μ} : ∀ {Γ α}, termₘ μ Γ α → termₘ μ Γ α → Type :=
+Inductive termₘ_step {μ Γ} : ∀ {α}, termₘ μ Γ α → termₘ μ Γ α → Type :=
   | termₘ_step_Pₘ :
-    ∀ {Γ} n,
-    (@Pₘ _ Γ) $ₘ (kₘ n) ⟶ₘ kₘ (Zm_pred n)
+    ∀ s_n,
+    (@Pₘ _ Γ) $ₘ (kₘ s_n) ⟶ₘ kₘ (Zm_pred s_n)
   | termₘ_step_Sₘ :
-    ∀ {Γ} n,
-    (@Sₘ _ Γ) $ₘ (kₘ n) ⟶ₘ kₘ (Zm_succ n)
+    ∀ s_n,
+    (@Sₘ _ Γ) $ₘ (kₘ s_n) ⟶ₘ kₘ (Zm_succ s_n)
   | termₘ_step_switchₘ_f :
-    ∀ {Γ} (f : Zm μ →₀ termₘ μ Γ ι),
-    ¬ stabilizing_fun_canonical f →
-    switchₘ f ⟶ₘ switchₘ (stabilizing_fun_canonize f)
+    ∀ (s_f : Zm μ →₀ termₘ μ Γ ι),
+    ¬ stabilizing_fun_canonical s_f →
+    switchₘ s_f ⟶ₘ switchₘ (stabilizing_fun_canonize s_f)
   | termₘ_step_switchₘ_f_n :
-    ∀ {Γ} (f : Zm μ →₀ termₘ μ Γ ι) n (t' : termₘ μ Γ ι),
-    stabilizing_fun_canonical f →
-    f n ⟶ₘ t' →
-    switchₘ f ⟶ₘ switchₘ (n ↦₀ t', f)
-  | termₘ_step_switchₘ_f_default :
-    ∀ {Γ} (f : Zm μ →₀ termₘ μ Γ ι) (t'_1 t'_2 : termₘ μ Γ ι),
-    stabilizing_fun_canonical f →
-    stabilizing_fun_default f = Some t'_1 →
-    t'_1 ⟶ₘ t'_2 →
-    switchₘ f ⟶ₘ switchₘ (_ ↦₀ t'_2, f)
+    ∀ (s_f : Zm μ →₀ termₘ μ Γ ι) n (t_f_n : termₘ μ Γ ι),
+    stabilizing_fun_canonical s_f →
+    s_f n ⟶ₘ t_f_n →
+    switchₘ s_f ⟶ₘ switchₘ (n ↦₀ t_f_n, s_f)
+  | termₘ_step_switchₘ_f_d :
+    ∀ (s_f : Zm μ →₀ termₘ μ Γ ι) (s_f_d t_f_d : termₘ μ Γ ι),
+    stabilizing_fun_canonical s_f →
+    stabilizing_fun_default s_f = Some s_f_d →
+    s_f_d ⟶ₘ t_f_d →
+    switchₘ s_f ⟶ₘ switchₘ (_ ↦₀ t_f_d, s_f)
   | termₘ_step_switchₘ :
-    ∀ {Γ} n (f : Zm μ →₀ termₘ μ Γ ι),
-    switchₘ f $ₘ kₘ n ⟶ₘ f n
+    ∀ (s_1_f : Zm μ →₀ termₘ μ Γ ι) s_2_n,
+    switchₘ s_1_f $ₘ kₘ s_2_n ⟶ₘ s_1_f s_2_n
   | termₘ_step_fixₘ :
-    ∀ {Γ} α (s : termₘ μ Γ (α ⇒ α)),
-    fixₘ α $ₘ s ⟶ₘ s $ₘ (fixₘ α $ₘ s)
-  | termₘ_step_Appₘ_s' :
-    ∀ {Γ α β} (s'_1 s'_2 : termₘ μ Γ (α ⇒ β)) (t' : termₘ μ Γ α),
-    s'_1 ⟶ₘ s'_2 →
-    s'_1 $ₘ t' ⟶ₘ s'_2 $ₘ t'
-  | termₘ_step_Appₘ_t' :
-    ∀ {Γ α β} (s' : termₘ μ Γ (α ⇒ β)) (t'_1 t'_2 : termₘ μ Γ α),
-    t'_1 ⟶ₘ t'_2 →
-    s' $ₘ t'_1 ⟶ₘ s' $ₘ t'_2
-  | termₘ_step_Absₘ_s' :
-    ∀ {Γ α} β (s'_1 s'_2 : termₘ μ (β :: Γ) α),
-    s'_1 ⟶ₘ s'_2 →
-    λₘ: β, s'_1 ⟶ₘ λₘ: β, s'_2
+    ∀ s_1_α (s_2 : termₘ μ Γ (s_1_α ⇒ s_1_α)),
+    fixₘ s_1_α $ₘ s_2 ⟶ₘ s_2 $ₘ (fixₘ s_1_α $ₘ s_2)
+  | termₘ_step_Appₘ_1 :
+    ∀ {s_α s_β} (s_1 t_1 : termₘ μ Γ (s_α ⇒ s_β)) (s_2 : termₘ μ Γ s_α),
+    s_1 ⟶ₘ t_1 →
+    s_1 $ₘ s_2 ⟶ₘ t_1 $ₘ s_2
+  | termₘ_step_Appₘ_2 :
+    ∀ {s_α s_β} (s_1 : termₘ μ Γ (s_α ⇒ s_β)) (s_2 t_2 : termₘ μ Γ s_α),
+    s_2 ⟶ₘ t_2 →
+    s_1 $ₘ s_2 ⟶ₘ s_1 $ₘ t_2
+  | termₘ_step_Absₘ_1 :
+    ∀ {s_α} s_β (s_1 t_1 : termₘ μ (s_β :: Γ) s_α),
+    s_1 ⟶ₘ t_1 →
+    λₘ: s_β, s_1 ⟶ₘ λₘ: s_β, t_1
   | termₘ_step_Absₘ :
-    ∀ {Γ α} β (s' : termₘ μ (β :: Γ) α) (t : termₘ μ Γ β),
-    (λₘ: β, s') $ₘ t ⟶ₘ substitutionₘ_inst (substitutionₘ_cons β t (substitutionₘ_id Γ)) s'
-  where "s_1 ⟶ₘ s_2" := (termₘ_step s_1 s_2).
+    ∀ {s_α} s_β (s_1_1 : termₘ μ (s_β :: Γ) s_α) (s_2 : termₘ μ Γ s_β),
+    (λₘ: s_β, s_1_1) $ₘ s_2 ⟶ₘ substitutionₘ_inst (substitutionₘ_cons s_β s_2 (substitutionₘ_id Γ)) s_1_1
+  where "s ⟶ₘ t" := (termₘ_step s t).
 
-Definition termₘ_red {μ Γ α} := t_closure_t (@termₘ_step μ Γ α).
-
-Notation "s_1  ⟶⁺ₘ  s_2" := (termₘ_red s_1 s_2) (at level 70).
+Notation "s  ⟶+ₘ  t" := (t_closure_t termₘ_step s t) (at level 70).
+Notation "s  ⟶*ₘ  t" := (rt_closure_t termₘ_step s t) (at level 70).
 
 Inductive termₘ_normal {μ Γ} : ∀ {α}, termₘ μ Γ α → Type :=
   | termₘ_normal_of_termₘ_neutral :
@@ -671,47 +683,47 @@ Inductive termₘ_normal {μ Γ} : ∀ {α}, termₘ μ Γ α → Type :=
     termₘ_neutral s →
     termₘ_normal s
   | termₘ_normal_kₘ :
-    ∀ n,
-    termₘ_normal (kₘ n)
+    ∀ s_n,
+    termₘ_normal (kₘ s_n)
   | termₘ_normal_Pₘ :
     termₘ_normal Pₘ
   | termₘ_normal_Sₘ :
     termₘ_normal Sₘ
   | termₘ_normal_switchₘ :
-    ∀ (f : Zm μ →₀ termₘ μ Γ ι),
-    stabilizing_fun_canonical f →
-    (∀ n, termₘ_normal (f n)) →
-    termₘ_normal (switchₘ f)
+    ∀ (s_f : Zm μ →₀ termₘ μ Γ ι),
+    stabilizing_fun_canonical s_f →
+    (∀ n, termₘ_normal (s_f n)) →
+    termₘ_normal (switchₘ s_f)
   | termₘ_normal_fixₘ :
-    ∀ α,
-    termₘ_normal (fixₘ α)
+    ∀ s_α,
+    termₘ_normal (fixₘ s_α)
   | termₘ_normal_Absₘ :
-    ∀ {α} β (s' : termₘ μ (β :: Γ) α),
-    termₘ_normal s' →
-    termₘ_normal (λₘ: β, s')
+    ∀ {s_α} s_β (s_1 : termₘ μ (s_β :: Γ) s_α),
+    termₘ_normal s_1 →
+    termₘ_normal (λₘ: s_β, s_1)
 with termₘ_neutral {μ Γ} : ∀ {α}, termₘ μ Γ α → Type :=
   | termₘ_neutral_Pₘ :
-    ∀ (s : termₘ μ Γ ι),
-    termₘ_neutral s →
-    termₘ_neutral (Pₘ $ₘ s)
+    ∀ (s_2 : termₘ μ Γ ι),
+    termₘ_neutral s_2 →
+    termₘ_neutral (Pₘ $ₘ s_2)
   | termₘ_neutral_Sₘ :
-    ∀ (s : termₘ μ Γ ι),
-    termₘ_neutral s →
-    termₘ_neutral (Sₘ $ₘ s)
+    ∀ (s_2 : termₘ μ Γ ι),
+    termₘ_neutral s_2 →
+    termₘ_neutral (Sₘ $ₘ s_2)
   | termₘ_neutral_switchₘ :
-    ∀ (f : Zm μ →₀ termₘ μ Γ ι) (s : termₘ μ Γ ι),
-    stabilizing_fun_canonical f →
-    (∀ n, termₘ_normal (f n)) →
-    termₘ_neutral s →
-    termₘ_neutral (switchₘ f $ₘ s)
+    ∀ (s_1_f : Zm μ →₀ termₘ μ Γ ι) (s_2 : termₘ μ Γ ι),
+    stabilizing_fun_canonical s_1_f →
+    (∀ n, termₘ_normal (s_1_f n)) →
+    termₘ_neutral s_2 →
+    termₘ_neutral (switchₘ s_1_f $ₘ s_2)
   | termₘ_neutral_Varₘ :
-    ∀ {α} (mi : mem_index α Γ),
-    termₘ_neutral (Varₘ α mi)
+    ∀ {s_α} (s_mi : mem_index s_α Γ),
+    termₘ_neutral (Varₘ s_α s_mi)
   | termₘ_neutral_Appₘ :
-    ∀ {α β} (s' : termₘ μ Γ (α ⇒ β)) (t' : termₘ μ Γ α),
-    termₘ_neutral s' →
-    termₘ_normal t' →
-    termₘ_neutral (s' $ₘ t').
+    ∀ {s_α s_β} (s_1 : termₘ μ Γ (s_α ⇒ s_β)) (s_2 : termₘ μ Γ s_α),
+    termₘ_neutral s_1 →
+    termₘ_normal s_2 →
+    termₘ_neutral (s_1 $ₘ s_2).
 
 Scheme termₘ_normal_mutind := Induction for termₘ_normal Sort Prop
 with termₘ_neutral_mutind := Induction for termₘ_neutral Sort Prop.
@@ -724,71 +736,71 @@ Definition termₘ_neutral_mutrec μ (P_normal : ∀ Γ α (s : termₘ μ Γ α
 
 Definition termₘ_progress {μ Γ α} (s : termₘ μ Γ α) : {t & s ⟶ₘ t} + termₘ_normal s.
 Proof.
-  induction s as [Γ n | Γ | Γ | Γ f_1 IH_f IH_f_default | Γ α | Γ α mi | Γ α β s'_1 IH_s' t'_1 IH_t' | Γ α β s'_1 IH_s'].
+  induction s as [Γ s_n | Γ | Γ | Γ s_f IH_s_f IH_s_f_default | Γ s_α | Γ s_α s_mi | Γ s_α s_β s_1 IH_s_1 s_2 IH_s_2 | Γ s_α s_β s_1 IH_s_1].
   - right. apply termₘ_normal_kₘ.
   - right. apply termₘ_normal_Pₘ.
   - right. apply termₘ_normal_Sₘ.
-  - destruct (dec_stabilizing_fun_canonical f_1) as [canonical_f_1 | canonical_f_1].
-    + assert (H_f : {n & {s'_2 & f_1 n ⟶ₘ s'_2}} + (∀ n, mem_index n (stabilizing_fun_keys f_1) → termₘ_normal (f_1 n))). {
-        clear s'_1 IH_f_default IH_s' canonical_f_1. generalize (stabilizing_fun_keys f_1); intros f_keys. induction f_keys as [| n f_keys' IH_f_keys].
+  - destruct (dec_stabilizing_fun_canonical s_f) as [canonical_s_f | canonical_s_f].
+    + assert (H_f : {n & {t_f_n & s_f n ⟶ₘ t_f_n}} + (∀ n, mem_index n (stabilizing_fun_keys s_f) → termₘ_normal (s_f n))). {
+        clear IH_s_f_default canonical_s_f. generalize (stabilizing_fun_keys s_f); intros f_keys. induction f_keys as [| n f_keys' IH_s_f_keys].
         - right. intros n H. inversion H.
-        - destruct (IH_f n) as [H_f_n | H_f_n] > [| destruct IH_f_keys as [(m & IH_f_keys) | IH_f_keys]].
+        - destruct (IH_s_f n) as [H_f_n | H_f_n] > [| destruct IH_s_f_keys as [(m & IH_s_f_keys) | IH_s_f_keys]].
           + left. exists n. auto.
           + left. exists m. auto.
           + right. intros m mi. inversion mi; auto.
       }
-      remember (stabilizing_fun_default f_1) as f_1_default eqn:H_f_1_default; symmetry in H_f_1_default.
-      destruct H_f as [(n & s'_2 & H_f_n) | H_f_n] > [| destruct f_1_default as [t'_1 |] > [destruct IH_f_default as [(s'_2 & H_f_default) | H_f_default] |]].
-      * left. exists (switchₘ (n ↦₀ s'_2, f_1)). apply termₘ_step_switchₘ_f_n; auto.
-      * left. exists (switchₘ (_ ↦₀ s'_2, f_1)). apply termₘ_step_switchₘ_f_default with t'_1; auto.
+      remember (stabilizing_fun_default s_f) as s_f_default eqn:H_s_f_default; symmetry in H_s_f_default.
+      destruct H_f as [(n & t_f_n & H_s_f_n) | H_s_f_n] > [| destruct s_f_default as [s_f_d |] > [destruct IH_s_f_default as [(t_f_d & H_s_f_d) | H_s_f_d] |]].
+      * left. exists (switchₘ (n ↦₀ t_f_n, s_f)). apply termₘ_step_switchₘ_f_n; auto.
+      * left. exists (switchₘ (_ ↦₀ t_f_d, s_f)). apply termₘ_step_switchₘ_f_d with s_f_d; auto.
       * right. apply termₘ_normal_switchₘ > [auto |]. intros n.
-        unfold stabilizing_fun_canonical in canonical_f_1. rewrite H_f_1_default in canonical_f_1. destruct canonical_f_1 as (_ & _ & canonical_f_1).
-        destruct (dec_eq_list_In n (stabilizing_fun_keys f_1)) as [mi | H_n].
-        -- apply H_f_n, mi.
-        -- specialize (canonical_f_1 n). destruct (f_1 n == t'_1) as [-> | H_f_1_n] > [| ltac1:(intuition auto)]. auto.
+        unfold stabilizing_fun_canonical in canonical_s_f. rewrite H_s_f_default in canonical_s_f. destruct canonical_s_f as (_ & _ & canonical_s_f).
+        destruct (dec_eq_list_In n (stabilizing_fun_keys s_f)) as [mi | H_n].
+        -- apply H_s_f_n, mi.
+        -- specialize (canonical_s_f n). destruct (s_f n == s_f_d); ltac1:(intuition congruence).
       * right. apply termₘ_normal_switchₘ > [auto |]. intros n.
-        unfold stabilizing_fun_canonical in canonical_f_1. rewrite H_f_1_default in canonical_f_1. destruct canonical_f_1 as (_ & _ & canonical_f_1).
-        destruct (dec_eq_list_In n (stabilizing_fun_keys f_1)) as [mi | H_n].
-        -- apply H_f_n, mi.
-        -- specialize (canonical_f_1 n). exfalso. auto.
-    + left. exists (switchₘ (stabilizing_fun_canonize f_1)). apply termₘ_step_switchₘ_f; auto.
+        unfold stabilizing_fun_canonical in canonical_s_f. rewrite H_s_f_default in canonical_s_f. destruct canonical_s_f as (_ & _ & canonical_s_f).
+        destruct (dec_eq_list_In n (stabilizing_fun_keys s_f)) as [mi | H_n].
+        -- apply H_s_f_n, mi.
+        -- specialize (canonical_s_f n). exfalso. auto.
+    + left. exists (switchₘ (stabilizing_fun_canonize s_f)). apply termₘ_step_switchₘ_f; auto.
   - right. apply termₘ_normal_fixₘ.
   - right. apply termₘ_normal_of_termₘ_neutral, termₘ_neutral_Varₘ.
-  - ltac1:(dependent elimination s'_1 as [@Pₘ Γ | @Sₘ Γ | @switchₘ Γ s'_f | @fixₘ Γ s'_α | @Varₘ Γ s'_α s'_mi | @Appₘ Γ s'_α s'_β s'_s' s'_t' | @Absₘ Γ s'_α s'_β s'_s']).
-    + destruct IH_s' as [(s'_2 & H_s') | H_s'] > [| destruct IH_t' as [(t'_2 & H_t') | H_t']].
-      * left. exists (s'_2 $ₘ t'_1). apply termₘ_step_Appₘ_s'; auto.
-      * left. exists (Pₘ $ₘ t'_2). apply termₘ_step_Appₘ_t'; auto.
-      * ltac1:(dependent elimination H_t' as [termₘ_normal_of_termₘ_neutral t'_1 H_t' | termₘ_normal_kₘ n]).
+  - ltac1:(dependent elimination s_1 as [@Pₘ _ _ | @Sₘ _ _ | @switchₘ _ _ s_1_f | @fixₘ _ _ s_1_α | @Varₘ _ _ s_1_α s_1_mi | @Appₘ _ _ s_1_α s_1_β s_1_1 s_1_2 | @Absₘ _ _ s_1_α s_1_β s_1_1]).
+    + destruct IH_s_1 as [(t_1 & H_s_1) | H_s_1] > [| destruct IH_s_2 as [(t_2 & H_s_2) | H_s_2]].
+      * left. exists (t_1 $ₘ s_2). apply termₘ_step_Appₘ_1; auto.
+      * left. exists (Pₘ $ₘ t_2). apply termₘ_step_Appₘ_2; auto.
+      * ltac1:(dependent elimination H_s_2 as [termₘ_normal_of_termₘ_neutral s_2 H_s_2 | termₘ_normal_kₘ s_2_n]).
         -- right. apply termₘ_normal_of_termₘ_neutral, termₘ_neutral_Pₘ; auto.
-        -- left. exists (kₘ (Zm_pred n)). apply termₘ_step_Pₘ.
-    + destruct IH_s' as [(s'_2 & H_s') | H_s'] > [| destruct IH_t' as [(t'_2 & H_t') | H_t']].
-      * left. exists (s'_2 $ₘ t'_1). apply termₘ_step_Appₘ_s'; auto.
-      * left. exists (Sₘ $ₘ t'_2). apply termₘ_step_Appₘ_t'; auto.
-      * ltac1:(dependent elimination H_t' as [termₘ_normal_of_termₘ_neutral t'_1 H_t' | termₘ_normal_kₘ n]).
+        -- left. exists (kₘ (Zm_pred s_2_n)). apply termₘ_step_Pₘ.
+    + destruct IH_s_1 as [(t_1 & H_s_1) | H_s_1] > [| destruct IH_s_2 as [(t_2 & H_s_2) | H_s_2]].
+      * left. exists (t_1 $ₘ s_2). apply termₘ_step_Appₘ_1; auto.
+      * left. exists (Sₘ $ₘ t_2). apply termₘ_step_Appₘ_2; auto.
+      * ltac1:(dependent elimination H_s_2 as [termₘ_normal_of_termₘ_neutral s_2 H_s_2 | termₘ_normal_kₘ s_2_n]).
         -- right. apply termₘ_normal_of_termₘ_neutral, termₘ_neutral_Sₘ; auto.
-        -- left. exists (kₘ (Zm_succ n)). apply termₘ_step_Sₘ.
-    + destruct IH_t' as [(t'_2 & H_t') | H_t'].
-      * left. exists (switchₘ s'_f $ₘ t'_2). apply termₘ_step_Appₘ_t'; auto.
-      * ltac1:(dependent elimination H_t' as [termₘ_normal_of_termₘ_neutral t'_1 H_t' | termₘ_normal_kₘ n]).
-        -- destruct IH_s' as [(s'_2 & H_s') | H_s'].
-           ++ left. exists (s'_2 $ₘ t'_1). apply termₘ_step_Appₘ_s'; auto.
-           ++ ltac1:(dependent elimination H_s' as [termₘ_normal_switchₘ s'_f canonical_s'_f H_s'_f]).
+        -- left. exists (kₘ (Zm_succ s_2_n)). apply termₘ_step_Sₘ.
+    + destruct IH_s_2 as [(t_2 & H_s_2) | H_s_2].
+      * left. exists (switchₘ s_1_f $ₘ t_2). apply termₘ_step_Appₘ_2; auto.
+      * ltac1:(dependent elimination H_s_2 as [termₘ_normal_of_termₘ_neutral s_2 H_s_2 | termₘ_normal_kₘ s_2_n]).
+        -- destruct IH_s_1 as [(t_1 & H_s_1) | H_s_1].
+           ++ left. exists (t_1 $ₘ s_2). apply termₘ_step_Appₘ_1; auto.
+           ++ ltac1:(dependent elimination H_s_1 as [termₘ_normal_switchₘ s_1_f canonical_s_1_f H_1_f_n]).
               right. apply termₘ_normal_of_termₘ_neutral, termₘ_neutral_switchₘ; auto.
-        -- left. exists (s'_f n). apply termₘ_step_switchₘ.
-    + left. exists (t'_1 $ₘ (fixₘ s'_α $ₘ t'_1)). apply termₘ_step_fixₘ.
-    + destruct IH_s' as [(s'_2 & H_s') | H_s'] > [| destruct IH_t' as [(t'_2 & H_t') | H_t']].
-      * left. exists (s'_2 $ₘ t'_1). apply termₘ_step_Appₘ_s'; auto.
-      * left. exists (Varₘ (α ⇒ β) s'_mi $ₘ t'_2). apply termₘ_step_Appₘ_t'; auto.
-      * ltac1:(dependent elimination H_s' as [termₘ_normal_of_termₘ_neutral _ H_s']).
+        -- left. exists (s_1_f s_2_n). apply termₘ_step_switchₘ.
+    + left. exists (s_2 $ₘ (fixₘ s_1_α $ₘ s_2)). apply termₘ_step_fixₘ.
+    + destruct IH_s_1 as [(t_1 & H_s_1) | H_s_1] > [| destruct IH_s_2 as [(t_2 & H_s_2) | H_s_2]].
+      * left. exists (t_1 $ₘ s_2). apply termₘ_step_Appₘ_1; auto.
+      * left. exists (Varₘ (s_α ⇒ s_β) s_1_mi $ₘ t_2). apply termₘ_step_Appₘ_2; auto.
+      * ltac1:(dependent elimination H_s_1 as [termₘ_normal_of_termₘ_neutral s_1 H_s_1]).
         right. apply termₘ_normal_of_termₘ_neutral, termₘ_neutral_Appₘ; auto.
-    + destruct IH_s' as [(s'_2 & H_s') | H_s'] > [| destruct IH_t' as [(t'_2 & H_t') | H_t']].
-      * left. exists (s'_2 $ₘ t'_1). apply termₘ_step_Appₘ_s'; auto.
-      * left. exists (s'_s' $ₘ s'_t' $ₘ t'_2). apply termₘ_step_Appₘ_t'; auto.
-      * ltac1:(dependent elimination H_s' as [termₘ_normal_of_termₘ_neutral _ H_s']).
+    + destruct IH_s_1 as [(t_1 & H_s_1) | H_s_1] > [| destruct IH_s_2 as [(t_2 & H_s_2) | H_s_2]].
+      * left. exists (t_1 $ₘ s_2). apply termₘ_step_Appₘ_1; auto.
+      * left. exists (s_1_1 $ₘ s_1_2 $ₘ t_2). apply termₘ_step_Appₘ_2; auto.
+      * ltac1:(dependent elimination H_s_1 as [termₘ_normal_of_termₘ_neutral s_1 H_s_1]).
         right. apply termₘ_normal_of_termₘ_neutral, termₘ_neutral_Appₘ; auto.
-    + left. exists (substitutionₘ_inst (substitutionₘ_cons s'_β t'_1 (substitutionₘ_id Γ)) s'_s'). apply termₘ_step_Absₘ.
-  - destruct IH_s' as [(s'_2 & H_s') | H_s'].
-    + left. exists (λₘ: β, s'_2). apply termₘ_step_Absₘ_s'; auto.
+    + left. exists (substitutionₘ_inst (substitutionₘ_cons s_1_β s_2 (substitutionₘ_id Γ)) s_1_1). apply termₘ_step_Absₘ.
+  - destruct IH_s_1 as [(t_1 & H_s_1) | H_s_1].
+    + left. exists (λₘ: s_β, t_1). apply termₘ_step_Absₘ_1; auto.
     + right. apply termₘ_normal_Absₘ; auto.
 Defined.
 
@@ -798,66 +810,62 @@ Lemma not_termₘ_normal_and_termₘ_step {μ Γ α} :
   s ⟶ₘ t →
   False.
 Proof.
-  intros s t H_normal_s H_step. revert t H_step; apply (termₘ_normal_mutind μ (λ Γ α s H_normal_s, ∀ t, s ⟶ₘ t → False) (λ Γ α s H_neutral_s, ∀ t, s ⟶ₘ t → False)); try (apply H_normal_s); clear Γ α s H_normal_s.
+  intros s t H_normal H_step. revert t H_step; apply (termₘ_normal_mutind μ (λ Γ α s H_normal, ∀ t, s ⟶ₘ t → False) (λ Γ α s H_neutral, ∀ t, s ⟶ₘ t → False)); try (apply H_normal); clear Γ α s H_normal.
   - intros Γ α s H_neutral_s IH_s t H_step. apply (IH_s t); auto.
-  - intros Γ n t H_step. inversion H_step.
+  - intros Γ s_n t H_step. inversion H_step.
   - intros Γ t H_step. inversion H_step.
   - intros Γ t H_step. inversion H_step.
-  - intros Γ s_f stabilizing_s_f H_normal_s_f_n IH_s_f_n t H_step.
-    ltac1:(dependent elimination H_step as [@termₘ_step_switchₘ_f Γ s_f H_s_f | @termₘ_step_switchₘ_f_n Γ s_f n s_t' H_s_f H_step | @termₘ_step_switchₘ_f_default Γ s_f s_t'_1 s_t'_2 H_s_f H_t'_1 H_step]).
+  - intros Γ s_f stabilizing_s_f H_normal_f_n IH_f_n t H_step.
+    ltac1:(dependent elimination H_step as [@termₘ_step_switchₘ_f _ _ s_f H_s_f | @termₘ_step_switchₘ_f_n _ _ s_f n t_f_n H_s_f H_step | @termₘ_step_switchₘ_f_d _ _ s_f s_f_d t_f_d H_s_f H_s_f_default H_step]).
     + auto.
-    + apply (IH_s_f_n n s_t'); auto.
-    + unfold stabilizing_fun_canonical in H_s_f. rewrite H_t'_1 in H_s_f. simpl in H_s_f. destruct (@dec_finite (Zm μ)) as [finite_A | infinite_A].
+    + apply (IH_f_n n t_f_n); auto.
+    + unfold stabilizing_fun_canonical in H_s_f. rewrite H_s_f_default in H_s_f. destruct (@dec_finite (Zm μ)) as [finite_A | infinite_A].
       * apply dec_finite_Zm.
       * ltac1:(intuition auto).
       * destruct H_s_f as (_ & _ & H_s_f). destruct (infinite_A (stabilizing_fun_keys s_f)) as (n & H_n).
-        specialize (H_s_f n). apply (IH_s_f_n n s_t'_2). ltac1:(replace (s_f n) with s_t'_1 by (apply NNPP; intuition auto)). auto.
-  - intros Γ α t H_step. inversion H_step.
-  - intros Γ α β s_s' H_normal_s_s' IH_s_s' t H_step.
-    ltac1:(dependent elimination H_step as [@termₘ_step_Absₘ_s' Γ α β s_s' t_s' H_step]). apply (IH_s_s' t_s'); auto.
-  - intros Γ s_s H_neutral_s_s IH_s_s t H_step.
-    remember Pₘ as s_u eqn:H_s_u; ltac1:(dependent elimination H_step as [@termₘ_step_Appₘ_s' Γ _ _ s_u t_u s_s H_step | @termₘ_step_Appₘ_t' Γ _ _ s_u s_s t_s H_step]); subst s_u.
+        specialize (H_s_f n). apply (IH_f_n n t_f_d). ltac1:(replace (s_f n) with s_f_d by (apply NNPP; intuition auto)). auto.
+  - intros Γ s_α t H_step. inversion H_step.
+  - intros Γ s_α s_β s_1 H_normal_s_1 IH_s_1 t H_step.
+    ltac1:(dependent elimination H_step as [@termₘ_step_Absₘ_1 _ _ s_α s_β s_1 t_1 H_step]). apply (IH_s_1 t_1); auto.
+  - intros Γ s_2 H_neutral_s_2 IH_s_2 t H_step.
+    remember Pₘ as s_1 eqn:H_s_1; ltac1:(dependent elimination H_step as [@termₘ_step_Appₘ_1 _ _ _ _ s_1 t_1 s_2 H_step | @termₘ_step_Appₘ_2 _ _ _ _ s_1 s_2 t_2 H_step]); subst s_1.
     + inversion H_step.
-    + apply (IH_s_s t_s); auto.
-  - intros Γ s_s H_neutral_s_s IH_s_s t H_step.
-    remember Sₘ as s_u eqn:H_s_u; ltac1:(dependent elimination H_step as [@termₘ_step_Appₘ_s' Γ _ _ s_u t_u s_s H_step | @termₘ_step_Appₘ_t' Γ _ _ s_u s_s t_s H_step]); subst s_u.
+    + apply (IH_s_2 t_2); auto.
+  - intros Γ s_2 H_neutral_s_2 IH_s_2 t H_step.
+    remember Sₘ as s_1 eqn:H_s_1; ltac1:(dependent elimination H_step as [@termₘ_step_Appₘ_1 _ _ _ _ s_1 t_1 s_2 H_step | @termₘ_step_Appₘ_2 _ _ _ _ s_1 s_2 t_2 H_step]); subst s_1.
     + inversion H_step.
-    + apply (IH_s_s t_s); auto.
-  - intros Γ s_f s_s stabilizing_f_n H_normal_s_f_n IH_s_f_n H_neutral_s_s IH_s_s t H_step.
-    remember (switchₘ s_f) as s_u eqn:H_s_u; ltac1:(dependent elimination H_step as [@termₘ_step_Appₘ_s' Γ _ _ s_u t_u s_s H_step | @termₘ_step_Appₘ_t' Γ _ _ s_u s_s t_s H_step]); subst s_u.
-    + ltac1:(dependent elimination H_step as [@termₘ_step_switchₘ_f Γ s_f H_s_f | @termₘ_step_switchₘ_f_n Γ s_f n s_t' H_s_f H_step | @termₘ_step_switchₘ_f_default Γ s_f s_t'_1 s_t'_2 H_s_f H_t'_1 H_step]).
+    + apply (IH_s_2 t_2); auto.
+  - intros Γ s_1_f s_2 stabilizing_s_1_f_n H_normal_s_1_f_n IH_s_1_f_n H_neutral_s_2 IH_s_2 t H_step.
+    remember (switchₘ s_1_f) as s_1 eqn:H_s_1; ltac1:(dependent elimination H_step as [@termₘ_step_Appₘ_1 _ _ _ _ s_1 t_1 s_2 H_step | @termₘ_step_Appₘ_2 _ _ _ _ s_1 s_2 t_2 H_step]); subst s_1.
+    + ltac1:(dependent elimination H_step as [@termₘ_step_switchₘ_f _ _ s_1_f H_s_1_f | @termₘ_step_switchₘ_f_n _ _ s_1_f n t_1_f_n H_s_1_f H_step | @termₘ_step_switchₘ_f_d _ _ s_1_f s_1_f_d t_1_f_d H_s_f H_s_1_f_default H_step]).
       * auto.
-      * apply (IH_s_f_n n s_t'); auto.
-      * unfold stabilizing_fun_canonical in H_s_f. rewrite H_t'_1 in H_s_f. simpl in H_s_f. destruct (@dec_finite (Zm μ)) as [finite_A | infinite_A].
+      * apply (IH_s_1_f_n n t_1_f_n); auto.
+      * unfold stabilizing_fun_canonical in H_s_f. rewrite H_s_1_f_default in H_s_f. destruct (@dec_finite (Zm μ)) as [finite_A | infinite_A].
         -- apply dec_finite_Zm.
         -- ltac1:(intuition auto).
-        -- destruct H_s_f as (_ & _ & H_s_f). destruct (infinite_A (stabilizing_fun_keys s_f)) as (n & H_n).
-           specialize (H_s_f n). apply (IH_s_f_n n s_t'_2). ltac1:(replace (s_f n) with s_t'_1 by (apply NNPP; intuition auto)). auto.
-    + apply (IH_s_s t_s); auto.
-  - intros Γ α mi t H_step. inversion H_step.
-  - intros Γ α β s_s' s_t' H_neutral_s_s' IH_s_s' H_normal_s_t' IH_s_t' t H_step.
-    ltac1:(dependent elimination H_step as [@termₘ_step_Appₘ_s' Γ _ _ s_s' t_s' s_t' H_step | @termₘ_step_Appₘ_t' Γ _ _ s_s' s_t' t_t' H_step]).
-    + apply (IH_s_s' t_s'); auto.
-    + apply (IH_s_t' t_t'); auto.
+        -- destruct H_s_f as (_ & _ & H_s_f). destruct (infinite_A (stabilizing_fun_keys s_1_f)) as (n & H_n).
+           specialize (H_s_f n). apply (IH_s_1_f_n n t_1_f_d). ltac1:(replace (s_1_f n) with s_1_f_d by (apply NNPP; intuition auto)). auto.
+    + apply (IH_s_2 t_2); auto.
+  - intros Γ s_α s_mi t H_step. inversion H_step.
+  - intros Γ s_α s_β s_1 s_2 H_neutral_s_1 IH_s_1 H_normal_s_2 IH_s_2 t H_step.
+    ltac1:(dependent elimination H_step as [@termₘ_step_Appₘ_1 _ _ _ _ s_1 t_1 s_2 H_step | @termₘ_step_Appₘ_2 _ _ _ _ s_1 s_2 t_2 H_step]).
+    + apply (IH_s_1 t_1); auto.
+    + apply (IH_s_2 t_2); auto.
 Qed.
 
-Fixpoint termₘ_reduce {μ Γ α} (n : nat) (s : termₘ μ Γ α) : option {t : termₘ μ Γ α & (s ⟶⁺ₘ t)}.
+Fixpoint termₘ_reduce {μ Γ α} (n : nat) (s : termₘ μ Γ α) : {t : termₘ μ Γ α & s ⟶*ₘ t}.
 Proof.
   destruct n as [| n'].
-  - apply None.
+  - exists s. apply refl_rt_closure_t.
   - destruct (termₘ_progress s) as [(t & H_s) | H_s].
-    + apply t_closure_t_step in H_s. destruct (termₘ_reduce _ _ _ n' t) as [(u & H_t) |].
-      * apply Some. exists u. apply trans_t_closure_t with t; auto.
-      * apply Some. exists t. auto.
-    + apply None.
+    + apply rt_closure_t_step in H_s. destruct (termₘ_reduce _ _ _ n' t) as (u & H_t).
+      exists u. apply trans_rt_closure_t with t; auto.
+    + exists s. apply refl_rt_closure_t.
 Defined.
 
 Definition termₘ_reduce_list {μ Γ α} (n : nat) (s : termₘ μ Γ α) : list (termₘ μ Γ α) :=
-  s ::
-  match termₘ_reduce n s with
-  | None => []
-  | Some (existT _ _ H) => list_of_t_closure_t H
-  end.
+  let '(existT _ _ H) := termₘ_reduce n s in
+  list_of_rt_closure_t H.
 
 Definition example_plusₘ {μ Γ} : termₘ μ Γ (ι ⇒ ι ⇒ ι) :=
   fixₘ (ι ⇒ ι ⇒ ι) $ₘ (λₘ: ι ⇒ ι ⇒ ι, λₘ: ι, λₘ: ι,
@@ -876,9 +884,9 @@ Definition example_fibonacciₘ {μ Γ} : termₘ μ Γ (ι ⇒ ι) :=
     ) $ₘ Varₘ ι MIO
   ).
 
-Eval lazy in (List.map rebuild_termₘ (termₘ_reduce_list 5 (@example_fibonacciₘ 0 [] $ₘ (kₘ (Zm_of_Z 3))))).
+Eval lazy in List.map rebuild_termₘ (termₘ_reduce_list 5 (@example_fibonacciₘ 0 [] $ₘ (kₘ (Zm_of_Z 3)))).
 
-Eval lazy in option_map (λ s, rebuild_termₘ (projT1 s)) (termₘ_reduce 2 (@example_fibonacciₘ 0 [] $ₘ (kₘ (Zm_of_Z 2)))).
+Eval lazy in rebuild_termₘ (projT1 (termₘ_reduce 2 (@example_fibonacciₘ 0 [] $ₘ (kₘ (Zm_of_Z 2))))).
 
 (*
 Set Printing Width 120.

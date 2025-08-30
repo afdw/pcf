@@ -32,16 +32,16 @@ Fixpoint construct_type (αs : list type) : type :=
 Fixpoint destruct_type (α : type) : list type :=
   match α with
   | ι => []
-  | α' ⇒ β' => α' :: destruct_type β'
+  | α_1 ⇒ α_2 => α_1 :: destruct_type α_2
   end.
 
 Lemma construct_type_destruct_type :
   ∀ α,
   construct_type (destruct_type α) = α.
 Proof.
-  intros α. induction α as [| α' IH_α' β' IH_β'].
+  intros α. induction α as [| α_1 IH_α_1 α_2 IH_α_2].
   - auto.
-  - simpl. rewrite IH_β'. auto.
+  - simpl. rewrite IH_α_2. auto.
 Qed.
 
 Lemma destruct_type_construct_type :
